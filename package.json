@@ -1,0 +1,16 @@
+{
+    "name": "quickserve-pos-monorepo",
+    "private": true,
+    "workspaces": [
+        "apps/*",
+        "packages/*"
+    ],
+    "scripts": {
+        "dev:cafe": "npm run dev --workspace=@quickserve/cafe-pos",
+        "build:cafe": "npm run build --workspace=@quickserve/cafe-pos",
+        "lint": "npm run lint --workspaces"
+    },
+    "devDependencies": {
+        "concurrently": "^8.0.0"
+    }
+}
