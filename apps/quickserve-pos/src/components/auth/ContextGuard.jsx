@@ -2,24 +2,46 @@ import React from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useOutlet } from '@/context/OutletContext';
 import { Navigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
+import { 
+  ALL_PLATFORM_ROLES, 
+  ALL_OUTLET_ROLES,
+  isPlatformRole,
+  isOutletRole 
+} from '@/config/permissions';
 
-export const PLATFORM_ROLES = ['OWNER_SUPER_ADMIN', 'SUPER_ADMIN', 'ADMIN', 'SALESPERSON', 'ACCOUNTANT'];
-export const OUTLET_ROLES = ['OWNER', 'MANAGER', 'STAFF', 'KITCHEN'];
+// Roles and permissions should be imported directly from @/config/permissions.
 
 export const ContextGuard = ({ context, children }) => {
     const { role, user, loading, logout } = useAuth();
     const { outletId } = useOutlet();
 
-    if (loading) return null;
+    // Show loading while auth state is determined
+    if (loading) {
+        return (
+            <div className="h-screen flex items-center justify-center bg-gray-100">
+                <Loader2 className="animate-spin w-8 h-8 text-gray-500"/>
+            </div>
+        );
+    }
 
-    // If not logged in, just show the intended (Login) page
-    if (!user) return children;
+    // If not logged in at platform routes, let the login page render
+    if (context === 'platform' && !user) {
+        return children;
+    }
 
-    // STRICT ENFORCEMENT
+    // If not logged in at outlet routes, let the login screen render
+    if (context === 'outlet' && !user) {
+        return children;
+    }
+
+    // ==========================================
+    // STRICT CONTEXT ENFORCEMENT
+    // ==========================================
     
     if (context === 'platform') {
-        // If an outlet user is at the root/platform URL
-        if (OUTLET_ROLES.includes(role)) {
+        // Outlet users at platform URL = BLOCK
+        if (ALL_OUTLET_ROLES.includes(role)) {
             return (
                 <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4 text-white">
                     <div className="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-2xl text-center border border-slate-700">
@@ -31,7 +53,15 @@ export const ContextGuard = ({ context, children }) => {
                         </p>
                         <div className="space-y-4">
                             <button 
-                                onClick={() => window.location.href = `/${localStorage.getItem('last_outlet_id') || ''}`}
+                                onClick={() => {
+                                    const lastOutlet = localStorage.getItem('last_outlet_id');
+                                    if (lastOutlet) {
+                                        window.location.href = `/${lastOutlet}`;
+                                    } else {
+                                        logout();
+                                        window.location.href = '/';
+                                    }
+                                }}
                                 className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold transition-colors"
                             >
                                 Back to POS
@@ -50,9 +80,8 @@ export const ContextGuard = ({ context, children }) => {
     }
 
     if (context === 'outlet') {
-        // If a company platform user tries to access an outlet link
-        if (PLATFORM_ROLES.includes(role)) {
-            // Silently redirect platform users back to their dashboard context
+        // Platform users at outlet URL = REDIRECT to admin
+        if (ALL_PLATFORM_ROLES.includes(role)) {
             return <Navigate to="/admin" replace />;
         }
     }

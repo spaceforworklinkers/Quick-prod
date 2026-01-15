@@ -2,102 +2,93 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useOutlet } from './OutletContext';
+import { 
+  ALL_PLATFORM_ROLES
+} from '@/config/permissions';
 
 const AuthContext = createContext({});
 
 export const useAuth = () => useContext(AuthContext);
 
+// AuthContext exports only the context and provider. 
+// Roles and permissions should be imported directly from @/config/permissions.
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState('guest'); // 'owner', 'kitchen', 'guest'
+  const [role, setRole] = useState(null); // START AS NULL, NOT GUEST - null means "not determined yet"
   const { outletId } = useOutlet();
 
   useEffect(() => {
-    const isPlaceholder = supabase.supabaseUrl.includes('placeholder.supabase.co');
-
-    if (isPlaceholder) {
-        console.warn("Using placeholder Supabase URL. Skipping remote session check.");
-        checkLocalFallback();
-        setLoading(false);
-        return;
-    }
-
-    // 1. Check active session
+    // SECURITY: Always verify session with Supabase, no exceptions
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchUserRole(session.user);
-      else checkLocalFallback(); // Check for local fallback session
-      setLoading(false);
+      if (session?.user) {
+        fetchUserRole(session.user);
+      } else {
+        // NO FALLBACK. User is NOT authenticated.
+        setUser(null);
+        setRole(null);
+        setLoading(false);
+      }
     }).catch(err => {
       console.error("Auth Session Error:", err);
-      checkLocalFallback();
+      // SECURITY: On error, DENY access, do NOT fallback
+      setUser(null);
+      setRole(null);
       setLoading(false);
     });
 
-    // 2. Listen for changes
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-          fetchUserRole(session.user);
+        fetchUserRole(session.user);
       } else {
-          checkLocalFallback();
+        setUser(null);
+        setRole(null);
       }
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [outletId]); // Re-run when outletId changes to re-validate role
 
-  const checkLocalFallback = () => {
-      // Keep support for the legacy 'simple auth' for now until full migration
-      const legacySession = localStorage.getItem('quickserve_session');
-      const legacyRole = localStorage.getItem('quickserve_role');
-      if (legacySession === 'true') {
-          // Mock user structure
-          setUser({ id: 'legacy_user', email: 'demo@example.com' });
-          setRole(legacyRole || 'owner');
-      } else {
-          setUser(null);
-          setRole('guest');
-      }
-  };
-
-  // Platform vs Outlet Role definitions
-  const PLATFORM_ROLES = ['OWNER_SUPER_ADMIN', 'SUPER_ADMIN', 'ADMIN', 'SALESPERSON', 'ACCOUNTANT'];
-  const OUTLET_ROLES = ['OWNER', 'MANAGER', 'STAFF', 'KITCHEN'];
-
-  const fetchUserRole = async (user) => {
+  const fetchUserRole = async (authUser) => {
+      setLoading(true);
       try {
           // 1. Fetch Global Profile
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from('user_profiles')
             .select('role')
-            .eq('id', user.id)
+            .eq('id', authUser.id)
             .maybeSingle();
-            
-          if (!profile) {
-              setRole('guest');
+          
+          if (profileError || !profile) {
+              console.warn("No profile found for user, denying access");
+              setRole(null);
+              setLoading(false);
               return;
           }
 
           const userGlobalRole = profile.role;
 
-          // scenario: We are trying to access a specific Outlet (URL has outletId)
+          // Scenario A: Accessing a specific Outlet (URL has outletId)
           if (outletId) {
               // Priority 1: Check if user is explicit staff of this outlet
               const { data: staffRecord } = await supabase
                   .from('restaurant_users')
                   .select('role')
                   .eq('restaurant_id', outletId)
-                  .eq('user_id', user.id)
+                  .eq('user_id', authUser.id)
                   .maybeSingle();
               
               if (staffRecord) {
                   setRole(staffRecord.role);
+                  setLoading(false);
                   return;
               }
 
@@ -112,76 +103,77 @@ export const AuthProvider = ({ children }) => {
                   const { data: ownerRecord } = await supabase
                       .from('restaurant_owners')
                       .select('id')
-                      .eq('user_id', user.id)
+                      .eq('user_id', authUser.id)
                       .eq('id', restaurant.owner_id)
                       .maybeSingle();
                   
                   if (ownerRecord) {
                       setRole('OWNER');
+                      setLoading(false);
                       return;
                   }
               }
 
-              // Priority 3: Company Support Access or Block
-              // User requirement: "If a company user tries to open an outlet URL: Access must be denied"
-              if (PLATFORM_ROLES.includes(userGlobalRole)) {
-                  // We set the platform role so ContextGuard knows to redirect them out
+              // Priority 3: Platform user at outlet URL = set their platform role (ContextGuard handles block)
+              if (ALL_PLATFORM_ROLES.includes(userGlobalRole)) {
                   setRole(userGlobalRole);
+                  setLoading(false);
                   return;
               }
 
-              // User authenticated but has NO role in THIS outlet
-              setRole('guest');
+              // User authenticated but has NO role in THIS outlet = DENY
+              console.warn("User has no permission for this outlet");
+              setRole(null);
+              setLoading(false);
               return;
           }
 
-          // scenario: We are at ROOT (Platform Context)
+          // Scenario B: Platform Context (no outletId)
           setRole(userGlobalRole);
+          setLoading(false);
 
       } catch (err) {
           console.error("Security Role Verification Error:", err);
-          setRole('guest');
+          setRole(null);
+          setLoading(false);
       }
   };
 
+  // STRICT LOGIN: ONLY via Supabase Auth
   const login = async (email, password) => {
-      // Try Supabase Auth first
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (!error && data.session) {
+      if (error) {
+          return { success: false, error: 'Invalid credentials' }; // Generic message
+      }
+      if (data.session) {
           return { success: true };
       }
-      
-      // Fallback to the hardcoded/legacy check (Client-side only)
-      // This preserves the specific user request for 'bhukkadcafe...' credentials
-      // without needing to seed them into Supabase Auth immediately.
-      const validUsername = 'bhukkadcafe007tdl';
-      const validPassword = 'dotty!@!95575dotty';
-      
-      if ((email === validUsername && password === validPassword) || (email === 'admin' && password === 'admin')) {
-           localStorage.setItem('quickserve_session', 'true');
-           localStorage.setItem('quickserve_role', 'owner');
-           checkLocalFallback();
-           return { success: true };
-      }
-
-      return { success: false, error: error?.message || 'Invalid credentials' };
+      return { success: false, error: 'Login failed' };
   };
   
+  // Kitchen login via outlet-specific passcode
   const kitchenLogin = async (passCode) => {
       if (!outletId) return { success: false, error: 'Outlet ID missing' };
       
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('store_settings')
         .select('kitchen_password')
         .eq('restaurant_id', outletId)
         .maybeSingle();
 
-      const dbPass = data?.kitchen_password || 'kitchen_pass';
+      if (error || !data) {
+          return { success: false, error: 'Configuration error' };
+      }
+
+      const dbPass = data.kitchen_password;
+      if (!dbPass) {
+          return { success: false, error: 'Kitchen access not configured' };
+      }
 
       if (passCode === dbPass) {
-          localStorage.setItem('quickserve_session', 'true');
-          localStorage.setItem('quickserve_role', 'kitchen');
-          checkLocalFallback();
+          // Create a pseudo-session for kitchen (stored in state only, not persistent)
+          setUser({ id: `kitchen_${outletId}`, email: 'kitchen@local' });
+          setRole('KITCHEN');
           return { success: true };
       }
       return { success: false, error: 'Invalid kitchen code' };
@@ -189,9 +181,9 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     await supabase.auth.signOut();
-    localStorage.removeItem('quickserve_session');
-    localStorage.removeItem('quickserve_role');
-    checkLocalFallback();
+    setUser(null);
+    setSession(null);
+    setRole(null);
   };
 
   return (

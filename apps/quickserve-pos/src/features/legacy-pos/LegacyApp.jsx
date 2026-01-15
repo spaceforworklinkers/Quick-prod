@@ -26,6 +26,8 @@ import { useStoreSettings } from '@/hooks/useOutletData';
 import { OrderService } from '@/services/OrderService';
 import { ViewGuard } from '@/components/auth/PermissionGuard';
 import { PERMISSIONS } from '@/config/permissions';
+import { SetupRequiredScreen } from './SetupRequiredScreen';
+import { AlertTriangle, Lock } from 'lucide-react';
 
 export default function LegacyApp() {
   const { toast } = useToast();
@@ -68,27 +70,89 @@ export default function LegacyApp() {
     };
   }, []);
 
-  // Update State based on Settings (Local First)
+// Update State based on Settings (Local First)
+  // Inside LegacyApp function...
+//   const [missingSetupItems, setMissingSetupItems] = useState([]);
+//   const [subscriptionStatus, setSubscriptionStatus] = useState('active');
+  
+  // Inside LegacyApp function...
+  const [missingSetupItems, setMissingSetupItems] = useState([]);
+  const [subscriptionStatus, setSubscriptionStatus] = useState('active');
+
+  // Load Initial Data & Checks
   useEffect(() => {
-      if (!user) return;
+      if (!user || !outletId) return;
       if (role === 'kitchen') {
           setActiveView('kitchen');
           return;
       }
       
+      const checkReadiness = async () => {
+          // 1. Check Subscription
+          const { data: restData } = await supabase
+            .from('restaurants')
+            .select('subscription_status, subscription_expiry')
+            .eq('id', outletId)
+            .single();
+          
+          if (restData) {
+              // Simple client-side check, robust check should be RLS/Backend
+              // setIsActiveSubscription(restData.subscription_status !== 'expired');
+              setSubscriptionStatus(restData.subscription_status);
+          }
+
+          // 2. Check Setup (Only for Owners)
+          if (role === 'OWNER' || role === 'MANAGER') {
+               const { count: menuCount } = await supabase.from('menu_items').select('*', { count: 'exact', head: true }).eq('restaurant_id', outletId);
+               const { count: tableCount } = await supabase.from('restaurant_tables').select('*', { count: 'exact', head: true }).eq('restaurant_id', outletId);
+               
+               const missing = [];
+               if (menuCount === 0) missing.push('menu');
+               // if (tableCount === 0) missing.push('tables'); // Tables optional for Quick Service? Let's say yes for now.
+               
+               if (missing.length > 0) setMissingSetupItems(missing);
+          }
+      };
+      
+      checkReadiness();
+
+      // Original Settings Logic
       if (settings?.order_mode_settings?.enabled) {
           setIsOrderMode(true);
           setActiveView('create-order');
           setExitPin(settings.order_mode_settings.exit_pin || '1234');
-      } else if (activeView === 'kitchen') {
-          // Do nothing if already kitchen
-      } else {
-           // Default to dashboard if not locked
-           // But check if we were already navigating? 
-           // Initial load only?
-           // If 'activeView' state is 'dashboard' (default), nothing to do.
       }
-  }, [user, role, settings]);
+  }, [user, role, settings, outletId]); 
+  
+  // Guard for Expired Subscription
+  if (subscriptionStatus === 'expired' || subscriptionStatus === 'suspended') {
+      return (
+          <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white p-4">
+              <div className="max-w-md text-center space-y-4">
+                  <div className="w-20 h-20 bg-red-900/50 rounded-full flex items-center justify-center mx-auto ring-4 ring-red-900/20">
+                      <Lock className="w-10 h-10 text-red-500" />
+                  </div>
+                  <h1 className="text-3xl font-bold text-white">Access Suspended</h1>
+                  <p className="text-gray-400">Your subscription for this outlet has expired. Access to the POS, Kitchen, and Dashboard is restricted.</p>
+                  <Button className="mt-6 bg-red-600 hover:bg-red-700" onClick={logout}>Sign Out</Button>
+                  <p className="text-xs text-gray-600 mt-8">Contact support to renew your plan.</p>
+              </div>
+          </div>
+      );
+  }
+
+  // Guard for Zero-State Setup
+  if (missingSetupItems.length > 0 && (role === 'OWNER' || role === 'MANAGER')) {
+      return (
+          <SetupRequiredScreen 
+             missingItems={missingSetupItems} 
+             setActiveView={(view) => {
+                 setMissingSetupItems([]); // Temporarily clear to allow access
+                 setActiveView(view);
+             }} 
+          />
+      );
+  }
 
   // --- GLOBAL QR ORDER LISTENER ---
   useEffect(() => {

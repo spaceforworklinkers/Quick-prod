@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Loader2, LayoutDashboard, Mail, Lock, Globe } from 'lucide-react';
-import { ROLES } from '@/config/permissions';
+import { ALL_PLATFORM_ROLES } from '@/config/permissions';
 
 export default function CompanyLogin() {
     const { login, role } = useAuth();
@@ -16,7 +16,7 @@ export default function CompanyLogin() {
     const [loading, setLoading] = useState(false);
 
     // List of roles allowed in Platform/Company Portal
-    const ALLOWED_ROLES = ['OWNER_SUPER_ADMIN', 'SUPER_ADMIN', 'ADMIN', 'SALESPERSON', 'ACCOUNTANT']; 
+    const ALLOWED_ROLES = ALL_PLATFORM_ROLES; 
 
     const handleLogin = async (e) => {
         e.preventDefault();
