@@ -13,15 +13,33 @@ export const useAuth = () => useContext(AuthContext);
 // AuthContext exports only the context and provider. 
 // Roles and permissions should be imported directly from @/config/permissions.
 
+/**
+ * =========================================================================
+ * AUTH CONTEXT
+ * =========================================================================
+ * 
+ * Purpose: 
+ * Manages the GLOBAL user session and determines the user's role 
+ * within the current context (Platform vs Outlet).
+ * 
+ * Key Responsibility:
+ * - Session Management (Sign In/Out)
+ * - Role Verification (Who are you in THIS specific outlet?)
+ * - Security Gates (Deny access if patterns don't match)
+ */
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState(null); // START AS NULL, NOT GUEST - null means "not determined yet"
+  const [loading, setLoading] = useState(true); // CRITICAL: Blocks app rendering until true state is known
+  const [role, setRole] = useState(null); // 'null' = Not determined / No Access
   const { outletId } = useOutlet();
 
   useEffect(() => {
-    // SECURITY: Always verify session with Supabase, no exceptions
+    // ----------------------------------------------------
+    // INITIAL SESSION CHECK
+    // ----------------------------------------------------
+    // SECURITY: Always verify session with Supabase, no exceptions.
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -41,7 +59,9 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     });
 
-    // Listen for auth changes
+    // ----------------------------------------------------
+    // LISTENER FOR AUTH EVENTS (Login/Logout)
+    // ----------------------------------------------------
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -55,12 +75,15 @@ export const AuthProvider = ({ children }) => {
     });
 
     return () => subscription.unsubscribe();
-  }, [outletId]); // Re-run when outletId changes to re-validate role
+  }, [outletId]); // Re-run when outletId changes to re-validate role (e.g., switching outlets)
 
+  // ----------------------------------------------------
+  // ROLE VERIFICATION LOGIC (The Core Brain)
+  // ----------------------------------------------------
   const fetchUserRole = async (authUser) => {
       setLoading(true);
       try {
-          // 1. Fetch Global Profile
+          // 1. Fetch Global Profile (What is your base role?)
           const { data: profile, error: profileError } = await supabase
             .from('user_profiles')
             .select('role')
@@ -76,7 +99,9 @@ export const AuthProvider = ({ children }) => {
 
           const userGlobalRole = profile.role;
 
-          // Scenario A: Accessing a specific Outlet (URL has outletId)
+          // ------------------------------------------------
+          // SCENARIO A: ACCESSING A SPECIFIC OUTLET URL
+          // ------------------------------------------------
           if (outletId) {
               // Priority 1: Check if user is explicit staff of this outlet
               const { data: staffRecord } = await supabase
@@ -87,7 +112,7 @@ export const AuthProvider = ({ children }) => {
                   .maybeSingle();
               
               if (staffRecord) {
-                  setRole(staffRecord.role);
+                  setRole(staffRecord.role); // e.g., 'WAITER', 'MANAGER'
                   setLoading(false);
                   return;
               }
@@ -114,7 +139,8 @@ export const AuthProvider = ({ children }) => {
                   }
               }
 
-              // Priority 3: Platform user at outlet URL = set their platform role (ContextGuard handles block)
+              // Priority 3: Platform user at outlet URL = set their platform role
+              // ContextGuard will usually block this, but we return the role accurately.
               if (ALL_PLATFORM_ROLES.includes(userGlobalRole)) {
                   setRole(userGlobalRole);
                   setLoading(false);
@@ -128,7 +154,10 @@ export const AuthProvider = ({ children }) => {
               return;
           }
 
-          // Scenario B: Platform Context (no outletId)
+          // ------------------------------------------------
+          // SCENARIO B: PLATFORM CONTEXT (No Outlet ID)
+          // ------------------------------------------------
+          // Simple pass-through of global role
           setRole(userGlobalRole);
           setLoading(false);
 
@@ -138,6 +167,10 @@ export const AuthProvider = ({ children }) => {
           setLoading(false);
       }
   };
+
+  // ----------------------------------------------------
+  // LOGIN METHODS
+  // ----------------------------------------------------
 
   // STRICT LOGIN: ONLY via Supabase Auth
   const login = async (email, password) => {
@@ -151,7 +184,8 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: 'Login failed' };
   };
   
-  // Kitchen login via outlet-specific passcode
+  // KITCHEN LOGIN: PASSCODE BASED (Non-Persistent)
+  // Kitchen screens don't have emails. They use a simple code stored in store_settings.
   const kitchenLogin = async (passCode) => {
       if (!outletId) return { success: false, error: 'Outlet ID missing' };
       

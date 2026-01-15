@@ -9,82 +9,119 @@ import {
   Users, 
   LogOut,
   Settings,
-  ChevronRight,
+  ChevronRight, 
   Menu,
   X,
   DollarSign,
   Shield,
   Briefcase,
   PieChart,
-  History
+  History,
+  CreditCard,
+  Clock
 } from 'lucide-react';
 import { PLATFORM_ROLES, hasPermission, PLATFORM_PERMISSIONS } from '@/config/permissions';
 
 // Import modules
 import { DynamicDashboard } from './dashboards/DynamicDashboard';
-import { LeadManagement } from './LeadManagement';
+import { ConversionRequests } from './ConversionRequests';
 import { UserManagement } from './UserManagement';
 import { FinanceManagement } from './FinanceManagement';
 import { PlatformSettings } from './PlatformSettings';
 import { AuditLogs } from './AuditLogs';
+import { OutletManagement } from './OutletManagement';
+import { SubscriptionManagement } from './SubscriptionManagement';
 
 /**
- * PLATFORM ADMIN SHELL (DEFINITIVE)
+ * ============================================================
+ * PLATFORM ADMIN SHELL
+ * ============================================================
  * 
- * Layout: Left sidebar with branding
- * UX: Minimal, professional SaaS standard
+ * Purpose:
+ * This component acts as the main layout container for the entire
+ * Company Admin / Platform side of the application.
+ * 
+ * Features:
+ * 1. Responsive Sidebar Navigation.
+ * 2. Role-Based Menu Generation (Dynamic visibility based on permissions).
+ * 3. User Identity Display.
+ * 4. Dynamic Content Routing (Switches views without page reload).
  */
 export default function PlatformAdmin() {
+  // Auth Context provides current user info and role permissions
   const { user, role, logout, loading: authLoading } = useAuth();
+  
+  // State for UI controls
   const [activeView, setActiveView] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [restaurants, setRestaurants] = useState([]);
 
-  useEffect(() => {
-    if (user && role) {
-      fetchRestaurants();
-    }
-  }, [user, role]);
-
-  const fetchRestaurants = async () => {
-    const { data } = await supabase
-      .from('restaurants')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (data) setRestaurants(data);
-  };
-
+  // ----------------------------------------------------------------
+  // NAVIGATION CONFIGURATION
+  // ----------------------------------------------------------------
+  // This list defines all possible navigation items.
+  // The 'visible' property uses the centralized permission config
+  // to toggle items on/off for specific roles.
   const navItems = [
     { 
       id: 'dashboard', 
-      label: 'Platform Overview', 
+      label: role === PLATFORM_ROLES.SALESPERSON ? 'Workspace' : 'System Overview', 
       icon: LayoutDashboard,
       visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_DASHBOARD)
     },
     { 
-      id: 'leads', 
-      label: 'Lead Management', 
-      icon: Briefcase,
+      id: 'pipeline', 
+      label: 'Conversion Requests', 
+      icon: FileText,
       visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_LEADS)
     },
     { 
       id: 'outlets', 
-      label: 'Outlet Management', 
+      label: 'Outlets', 
       icon: Building2,
       visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_OUTLETS)
     },
     { 
-      id: 'finance', 
-      label: 'Finance & Billing', 
-      icon: DollarSign,
+      id: 'users', 
+      label: 'Users', 
+      icon: Users,
+      visible: hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_USERS)
+    },
+    { 
+      id: 'trials', 
+      label: 'Trials', 
+      icon: Clock,
+      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_OUTLETS)
+    },
+    { 
+      id: 'revenue', 
+      label: 'Revenue', 
+      icon: DollarSign, 
       visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_FINANCE)
     },
     { 
-      id: 'users', 
-      label: 'User Management', 
-      icon: Users,
-      visible: hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_USERS)
+      id: 'subscriptions', 
+      label: 'Subscriptions', 
+      icon: CreditCard,
+      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_SUBSCRIPTIONS)
+    },
+    { 
+      id: 'invoices', 
+      label: 'Invoices', 
+      icon: FileText,
+      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_FINANCE)
+    },
+    { 
+      id: 'taxes', 
+      label: 'Taxes', 
+      icon: Shield, // Using Shield as placeholder for Tax/Compliance
+      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_FINANCE)
+    },
+    { 
+      id: 'reports', 
+      label: 'Reports', 
+      icon: PieChart, 
+      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_FINANCE)
     },
     { 
       id: 'audit', 
@@ -94,32 +131,38 @@ export default function PlatformAdmin() {
     },
     { 
       id: 'settings', 
-      label: 'System Settings', 
+      label: 'Settings', 
       icon: Settings,
       visible: hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_SYSTEM_SETTINGS)
     }
-  ].filter(item => item.visible);
+  ].filter(item => item.visible); // Filter out unauthorized items
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-gray-50"><div className="w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
+      {/* =======================================
+          SIDEBAR NAVIGATION
+          ======================================= */}
       <aside className={`hidden lg:flex flex-col bg-white border-r border-gray-200 transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-20'}`}>
+        {/* Logo Area */}
         <div className="h-16 px-6 flex items-center border-b border-gray-100 mb-4 focus:outline-none" onClick={() => setActiveView('dashboard')}>
-          <div className="flex items-center gap-3 cursor-pointer">
-            <div className="w-9 h-9 bg-orange-600 rounded-lg flex items-center justify-center shrink-0 shadow-sm">
-              <span className="text-white font-bold text-base">QS</span>
-            </div>
+          <div className="flex items-center gap-3 cursor-pointer select-none">
+            <img 
+               src="/images/logo/QuickServe-logo-black.png" 
+               alt="QuickServe" 
+               className="h-8 w-auto object-contain"
+            />
             {sidebarOpen && (
               <div className="overflow-hidden">
-                <h1 className="font-bold text-gray-900 text-sm tracking-tight text-nowrap">QuickServe POS</h1>
-                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Company Panel</p>
+                <h1 className="font-['Outfit'] font-bold text-gray-900 text-lg tracking-tight whitespace-nowrap leading-none">QuickServe POS</h1>
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mt-0.5">Company Panel</p>
               </div>
             )}
           </div>
         </div>
 
+        {/* Menu Items */}
         <nav className="flex-1 px-3 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -142,6 +185,7 @@ export default function PlatformAdmin() {
           })}
         </nav>
 
+        {/* User Profile & Logout */}
         <div className="p-4 border-t border-gray-100 bg-gray-50/50">
           {sidebarOpen && (
             <div className="px-2 py-2 mb-3 bg-white rounded-lg border border-gray-100 shadow-sm">
@@ -166,21 +210,27 @@ export default function PlatformAdmin() {
         </div>
       </aside>
 
-      {/* Main Content Area */}
+      {/* =======================================
+          MAIN CONTENT AREA
+          ======================================= */}
       <main className="flex-1 overflow-auto bg-gray-50 flex flex-col">
-        {/* Top Header Placeholder for Desktop Search/Notifications */}
+        {/* Top Header */}
         <header className="h-16 hidden lg:flex items-center justify-between px-8 bg-white/10 backdrop-blur-sm border-b border-gray-100/50">
-           <div className="text-xs text-gray-400 font-medium">QuickServe Management System v1.1.0</div>
+           <div className="text-xs text-gray-400 font-medium">QuickServe Management System v2.0</div>
            <div className="flex items-center gap-4">
-              {/* Optional secondary actions can go here */}
+              {/* Future: Notifications, Global Search */}
            </div>
         </header>
 
+        {/* Dynamic Content Renderer */}
         <section className="p-8 max-w-[1400px] mx-auto w-full flex-1">
           {activeView === 'dashboard' && <DynamicDashboard />}
-          {activeView === 'leads' && <LeadManagement />}
-          {activeView === 'outlets' && <OutletsView restaurants={restaurants} />}
-          {activeView === 'finance' && <FinanceManagement role={role} />}
+          {activeView === 'pipeline' && <ConversionRequests />}
+          {(activeView === 'outlets' || activeView === 'trials') && <OutletManagement />}
+          {['revenue', 'invoices', 'taxes', 'reports'].includes(activeView) && (
+              <FinanceManagement role={role} view={activeView} />
+          )}
+          {activeView === 'subscriptions' && <SubscriptionManagement />}
           {activeView === 'users' && <UserManagement />}
           {activeView === 'audit' && <AuditLogs />}
           {activeView === 'settings' && <PlatformSettings />}
@@ -189,96 +239,3 @@ export default function PlatformAdmin() {
     </div>
   );
 }
-
-// Redesigned Outlets View for the Definitive Spec
-const OutletsView = ({ restaurants }) => {
-  const getStatusBadge = (status) => {
-    const styles = {
-      active: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-      trial: 'bg-blue-50 text-blue-700 border-blue-100',
-      expired: 'bg-orange-50 text-orange-700 border-orange-100',
-      suspended: 'bg-red-50 text-red-700 border-red-100'
-    };
-    return styles[status] || 'bg-gray-50 text-gray-600 border-gray-100';
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">Outlet Management</h1>
-          <p className="text-xs text-gray-500 font-medium mt-1">Manage all cafe and restaurant tenants</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="text-xs font-semibold px-4">
-            <FileText className="w-3.5 h-3.5 mr-2 opacity-60" /> Export Summary
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4">
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-          {restaurants.length > 0 ? (
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Restaurant</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Subscription</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Trial Ends</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Location</th>
-                  <th className="px-6 py-4 text-right"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {restaurants.map(rest => (
-                  <tr key={rest.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-gray-50 rounded-lg flex items-center justify-center border border-gray-100 shrink-0">
-                          <Building2 className="w-4 h-4 text-gray-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-900">{rest.name}</p>
-                          <p className="text-[10px] text-gray-400 font-medium">ID: {rest.id.substring(0, 8)}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full border ${getStatusBadge(rest.subscription_status)}`}>
-                        {rest.subscription_status?.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-xs font-semibold text-gray-600">
-                      {rest.trial_expiry ? new Date(rest.trial_expiry).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="px-6 py-4 text-xs font-medium text-gray-500 lowercase">
-                      {rest.city || 'not set'}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <Button
-                        variant="ghost" 
-                        size="sm"
-                        className="text-[11px] font-extrabold text-blue-600 hover:text-blue-700 hover:bg-blue-50 tracking-tight"
-                        onClick={() => window.open(`/${rest.id}`, '_blank')}
-                      >
-                        Launch POS <ChevronRight className="w-3.5 h-3.5 ml-1" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="py-20 text-center">
-              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-100">
-                <Building2 className="w-8 h-8 text-gray-200" />
-              </div>
-              <h3 className="text-sm font-bold text-gray-900">No active outlets</h3>
-              <p className="text-xs text-gray-400 mt-1 max-w-[240px] mx-auto leading-relaxed">Approve leads or create tenants to see them here.</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};

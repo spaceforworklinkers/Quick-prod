@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ChefHat, Coffee, Lock, User, KeyRound, AlertCircle, ArrowRight, Store } from 'lucide-react';
+import { ChefHat, Coffee, Lock, User, KeyRound, AlertCircle, ArrowRight, Store, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,6 +24,8 @@ const LoginScreen = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [kitchenPass, setKitchenPass] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showKitchenPass, setShowKitchenPass] = useState(false);
 
   useEffect(() => {
     const fetchOutletDetails = async () => {
@@ -166,12 +168,19 @@ const LoginScreen = ({ onLogin }) => {
                         <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400 group-focus-within:text-orange-500 transition-colors" />
                         <Input 
                           id="password"
-                          type="password" 
+                          type={showPassword ? "text" : "password"} 
                           placeholder="••••••••"
-                          className="pl-10 h-11 bg-gray-50 border-gray-200 focus:bg-white transition-all"
+                          className="pl-10 pr-10 h-11 bg-gray-50 border-gray-200 focus:bg-white transition-all"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                         />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                        >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
                       </div>
                     </div>
 
@@ -204,12 +213,19 @@ const LoginScreen = ({ onLogin }) => {
                             <div className="relative group">
                                 <KeyRound className="absolute left-3 top-3 h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                                 <Input 
-                                    type="password"
+                                    type={showKitchenPass ? "text" : "password"}
                                     placeholder="Enter access code"
-                                    className="pl-10 h-11 bg-gray-50 border-gray-200 focus:bg-white transition-all font-mono tracking-widest"
+                                    className="pl-10 pr-10 h-11 bg-gray-50 border-gray-200 focus:bg-white transition-all font-mono tracking-widest"
                                     value={kitchenPass}
                                     onChange={(e) => setKitchenPass(e.target.value)}
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowKitchenPass(!showKitchenPass)}
+                                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                                >
+                                    {showKitchenPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
                             </div>
                             <p className="text-xs text-gray-500">Contact the manager for the kitchen code.</p>
                         </div>

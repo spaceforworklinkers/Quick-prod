@@ -1,12 +1,12 @@
 /**
  * ============================================================
- * QUICKSERVE POS - DEFINITIVE RBAC CONFIGURATION
+ * QUICKSERVE POS - DEFINITIVE RBAC CONFIGURATION (v1.2)
  * ============================================================
- * VERSION: 1.1.1 (HYBRID)
- * LAST UPDATED: 2026-01-15
+ * UPDATED: 2026-01-15 (Refined based on User Feedback)
  * 
- * This file defines roles and permissions for both the 
- * Company/Platform side and the Outlet/POS side.
+ * CHANGES v1.2:
+ * - Removed OWNER_SUPER_ADMIN (Merged into SUPER_ADMIN)
+ * - Simplified OUTLET_ROLES to OWNER (with Order Mode) and KITCHEN
  * ============================================================
  */
 
@@ -14,8 +14,7 @@
 // 1. PLATFORM ROLES (Company Level)
 // ------------------------------------------------------------
 export const PLATFORM_ROLES = {
-  OWNER_SUPER_ADMIN: 'OWNER_SUPER_ADMIN',
-  SUPER_ADMIN: 'SUPER_ADMIN',
+  SUPER_ADMIN: 'SUPER_ADMIN', // Merged Role
   ADMIN: 'ADMIN',
   MANAGER: 'MANAGER',
   SALESPERSON: 'SALESPERSON',
@@ -28,9 +27,7 @@ export const ALL_PLATFORM_ROLES = Object.values(PLATFORM_ROLES);
 // 2. OUTLET ROLES (Restaurant Level)
 // ------------------------------------------------------------
 export const OUTLET_ROLES = {
-  OWNER: 'OWNER',
-  MANAGER: 'MANAGER',
-  STAFF: 'STAFF',
+  OWNER: 'OWNER', // Can toggle "Order Mode" to hide business details
   KITCHEN: 'KITCHEN'
 };
 
@@ -60,22 +57,12 @@ export const PLATFORM_PERMISSIONS = {
   VIEW_FINANCIAL_REPORTS: 'view_financial_reports',
   MANAGE_SYSTEM_SETTINGS: 'manage_system_settings',
   VIEW_AUDIT_LOGS: 'view_audit_logs',
-  EXPORT_DATA: 'export_data'
+  EXPORT_DATA: 'export_data',
+  VIEW_SUBSCRIPTIONS: 'view_subscriptions'
 };
 
 export const PLATFORM_ROLE_PERMISSIONS = {
-  [PLATFORM_ROLES.OWNER_SUPER_ADMIN]: Object.values(PLATFORM_PERMISSIONS),
-  
-  [PLATFORM_ROLES.SUPER_ADMIN]: [
-    PLATFORM_PERMISSIONS.VIEW_DASHBOARD,
-    PLATFORM_PERMISSIONS.VIEW_LEADS,
-    PLATFORM_PERMISSIONS.CREATE_LEADS,
-    PLATFORM_PERMISSIONS.APPROVE_LEADS,
-    PLATFORM_PERMISSIONS.VIEW_OUTLETS,
-    PLATFORM_PERMISSIONS.MANAGE_OUTLETS,
-    PLATFORM_PERMISSIONS.MANAGE_USERS,
-    PLATFORM_PERMISSIONS.VIEW_REPORTS
-  ],
+  [PLATFORM_ROLES.SUPER_ADMIN]: Object.values(PLATFORM_PERMISSIONS),
   
   [PLATFORM_ROLES.ADMIN]: [
     PLATFORM_PERMISSIONS.VIEW_DASHBOARD,
@@ -83,14 +70,17 @@ export const PLATFORM_ROLE_PERMISSIONS = {
     PLATFORM_PERMISSIONS.CREATE_LEADS,
     PLATFORM_PERMISSIONS.APPROVE_LEADS,
     PLATFORM_PERMISSIONS.VIEW_OUTLETS,
-    PLATFORM_PERMISSIONS.MANAGE_OUTLETS
+    PLATFORM_PERMISSIONS.MANAGE_OUTLETS,
+    PLATFORM_PERMISSIONS.VIEW_REPORTS,
+    PLATFORM_PERMISSIONS.VIEW_SUBSCRIPTIONS
   ],
   
   [PLATFORM_ROLES.MANAGER]: [
     PLATFORM_PERMISSIONS.VIEW_DASHBOARD,
     PLATFORM_PERMISSIONS.VIEW_LEADS,
     PLATFORM_PERMISSIONS.APPROVE_LEADS,
-    PLATFORM_PERMISSIONS.VIEW_OUTLETS
+    PLATFORM_PERMISSIONS.VIEW_OUTLETS,
+    PLATFORM_PERMISSIONS.VIEW_SUBSCRIPTIONS
   ],
   
   [PLATFORM_ROLES.SALESPERSON]: [
@@ -105,12 +95,13 @@ export const PLATFORM_ROLE_PERMISSIONS = {
     PLATFORM_PERMISSIONS.VIEW_FINANCE,
     PLATFORM_PERMISSIONS.VIEW_INVOICES,
     PLATFORM_PERMISSIONS.VIEW_FINANCIAL_REPORTS,
-    PLATFORM_PERMISSIONS.EXPORT_DATA
+    PLATFORM_PERMISSIONS.EXPORT_DATA,
+    PLATFORM_PERMISSIONS.VIEW_SUBSCRIPTIONS
   ]
 };
 
 // ------------------------------------------------------------
-// 4. OUTLET PERMISSIONS (Backward Compatibility)
+// 4. OUTLET PERMISSIONS
 // ------------------------------------------------------------
 export const PERMISSIONS = {
   VIEW_DASHBOARD: 'view_dashboard',
@@ -125,27 +116,12 @@ export const PERMISSIONS = {
   VIEW_SETTINGS: 'view_settings',
   MANAGE_SETTINGS: 'manage_settings',
   VIEW_CUSTOMERS: 'view_customers',
-  MANAGE_CUSTOMERS: 'manage_customers'
+  MANAGE_CUSTOMERS: 'manage_customers',
+  ORDER_MODE: 'order_mode' // New permission for simplified view
 };
 
 export const ROLE_PERMISSIONS = {
   [OUTLET_ROLES.OWNER]: Object.values(PERMISSIONS),
-  [OUTLET_ROLES.MANAGER]: [
-    PERMISSIONS.VIEW_DASHBOARD,
-    PERMISSIONS.CREATE_ORDER,
-    PERMISSIONS.VIEW_ORDERS,
-    PERMISSIONS.PROCESS_BILLING,
-    PERMISSIONS.VIEW_MENU,
-    PERMISSIONS.VIEW_INVENTORY,
-    PERMISSIONS.VIEW_REPORTS,
-    PERMISSIONS.VIEW_CUSTOMERS
-  ],
-  [OUTLET_ROLES.STAFF]: [
-    PERMISSIONS.VIEW_DASHBOARD,
-    PERMISSIONS.CREATE_ORDER,
-    PERMISSIONS.VIEW_ORDERS,
-    PERMISSIONS.PROCESS_BILLING
-  ],
   [OUTLET_ROLES.KITCHEN]: [
     PERMISSIONS.VIEW_ORDERS
   ]
@@ -155,9 +131,7 @@ export const ROLE_PERMISSIONS = {
 // 5. HELPER FUNCTIONS
 // ------------------------------------------------------------
 export const hasPermission = (role, permission) => {
-  // Check platform permissions
   if (PLATFORM_ROLE_PERMISSIONS[role]?.includes(permission)) return true;
-  // Check outlet permissions
   if (ROLE_PERMISSIONS[role]?.includes(permission)) return true;
   return false;
 };
