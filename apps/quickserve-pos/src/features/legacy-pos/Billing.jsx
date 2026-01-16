@@ -15,6 +15,7 @@ import { checkStockAvailability, deductStockForOrder } from '@/lib/stockHelpers'
 import { useOutlet } from '@/context/OutletContext';
 import { useStoreSettings } from '@/hooks/useOutletData';
 import { OrderService } from '@/services/OrderService';
+import { useBillCalculation } from '@/hooks/useBillCalculation';
 
 const WHATSAPP_TEMPLATES = [
   { id: 'tpl1', text: "Hi, thanks for visiting {{cafe_name}}. Your bill is {{final_amount}}. View details: {{invoice_url}}" },
@@ -50,8 +51,7 @@ const Billing = ({ order, setActiveView }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const [isLocked, setIsLocked] = useState(false);
-  const [gstPercentage, setGstPercentage] = useState(5.0);
-  const [gstMode, setGstMode] = useState('inclusive');
+  const { calculate: calculateBillTotals, gstRate: hookGstRate, gstMode: hookGstMode, loading: billSettingsLoading } = useBillCalculation();
   
   const [visitCount, setVisitCount] = useState(0);
 
@@ -70,13 +70,6 @@ const Billing = ({ order, setActiveView }) => {
       loadData();
     }
   }, [order, outletId]);
-  
-  useEffect(() => {
-      if (storeSettings) {
-          if (storeSettings.gst_percentage !== undefined) setGstPercentage(parseFloat(storeSettings.gst_percentage));
-          if (storeSettings.gst_mode) setGstMode(storeSettings.gst_mode);
-      }
-  }, [storeSettings]);
   
   useEffect(() => {
      if (customerMobile && outletId) {
@@ -167,15 +160,19 @@ const Billing = ({ order, setActiveView }) => {
   };
 
   const calculateFinalTotals = () => {
-    if (!orderDetails) return { subtotal: 0, discountAmount: 0, tax: 0, total: 0 };
+    if (!orderDetails) return { subtotal: 0, discountAmount: 0, tax: 0, total: 0, cgst: 0, sgst: 0 };
     if (isLocked) {
         return {
             subtotal: orderDetails.subtotal,
             discountAmount: orderDetails.discount_amount || 0,
             tax: orderDetails.tax,
-            total: orderDetails.total
+            total: orderDetails.total,
+            cgst: orderDetails.cgst || 0,
+            sgst: orderDetails.sgst || 0
         };
     }
+    
+    // Calculate discount amount
     const sumItems = orderDetails.order_items?.reduce((sum, item) => sum + (parseFloat(item.menu_item_price || item.price) * item.quantity), 0) || 0;
     
     let discountVal = 0;
@@ -193,25 +190,21 @@ const Billing = ({ order, setActiveView }) => {
     }
     if (discountVal > sumItems) discountVal = sumItems;
 
-    let finalSubtotal = 0, finalTax = 0, finalTotal = 0;
-    const rate = gstPercentage;
-
-    if (gstMode === 'exclusive') {
-        const base = sumItems;
-        const discountedBase = base - discountVal;
-        const gst = (discountedBase * rate) / 100;
-        finalSubtotal = base; finalTax = gst; finalTotal = discountedBase + gst;
-    } else {
-        const totalBeforeDiscount = sumItems;
-        const discountedTotal = totalBeforeDiscount - discountVal;
-        const gst = (discountedTotal * rate) / (100 + rate);
-        finalSubtotal = discountedTotal - gst; finalTax = gst; finalTotal = discountedTotal;
-    }
-    return { subtotal: finalSubtotal, discountAmount: discountVal, tax: finalTax, total: finalTotal };
+    // Use centralized billing calculation
+    const billResult = calculateBillTotals(orderDetails.order_items || [], discountVal);
+    
+    return { 
+        subtotal: billResult.taxableValue, 
+        discountAmount: billResult.discount, 
+        tax: billResult.gstAmount, 
+        total: billResult.total,
+        cgst: billResult.cgst,
+        sgst: billResult.sgst
+    };
   };
 
-  const { subtotal, discountAmount, tax, total } = calculateFinalTotals();
-  const totalsForReceipt = { subtotal, discountAmount, tax, total, promoCode: isLocked ? orderDetails?.promo_code : appliedPromo?.code };
+  const { subtotal, discountAmount, tax, total, cgst, sgst } = calculateFinalTotals();
+  const totalsForReceipt = { subtotal, discountAmount, tax, total, cgst, sgst, promoCode: isLocked ? orderDetails?.promo_code : appliedPromo?.code };
 
   const handlePaymentInitiate = async (method) => {
     if (!orderDetails) return;
@@ -240,7 +233,9 @@ const Billing = ({ order, setActiveView }) => {
           appliedPromoId: appliedPromo?.id || null,
           subtotal,
           total,
-          tax
+          tax,
+          cgst,
+          sgst
       };
       
       const context = {

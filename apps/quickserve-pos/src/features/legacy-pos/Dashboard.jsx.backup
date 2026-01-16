@@ -316,8 +316,8 @@ const Dashboard = ({
     try {
       const { error } = await supabase.from('orders').update({
           status: 'ARCHIVED',
-          original_status: orderToDelete.status, // Check if schema permits extra columns
-          archived_at: new Date().toISOString()
+          // original_status: orderToDelete.status, // Check if schema permits extra columns
+          // archived_at: new Date().toISOString()
       }).eq('id', orderToDelete.id).eq('restaurant_id', outletId);
 
       if (error) throw error;

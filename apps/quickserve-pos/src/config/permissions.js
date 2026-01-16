@@ -14,7 +14,8 @@
 // 1. PLATFORM ROLES (Company Level)
 // ------------------------------------------------------------
 export const PLATFORM_ROLES = {
-  SUPER_ADMIN: 'SUPER_ADMIN', // Merged Role
+  OWNER_SUPER_ADMIN: 'OWNER_SUPER_ADMIN', // Restored for backward compatibility
+  SUPER_ADMIN: 'SUPER_ADMIN',
   ADMIN: 'ADMIN',
   MANAGER: 'MANAGER',
   SALESPERSON: 'SALESPERSON',
@@ -62,6 +63,7 @@ export const PLATFORM_PERMISSIONS = {
 };
 
 export const PLATFORM_ROLE_PERMISSIONS = {
+  [PLATFORM_ROLES.OWNER_SUPER_ADMIN]: Object.values(PLATFORM_PERMISSIONS),
   [PLATFORM_ROLES.SUPER_ADMIN]: Object.values(PLATFORM_PERMISSIONS),
   
   [PLATFORM_ROLES.ADMIN]: [

@@ -12,5 +12,10 @@
     },
     "devDependencies": {
         "concurrently": "^8.0.0"
+    },
+    "dependencies": {
+        "dotenv": "^17.2.3",
+        "nodemailer": "^7.0.12",
+        "postgres": "^3.4.8"
     }
 }

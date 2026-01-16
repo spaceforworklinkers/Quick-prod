@@ -1,6 +1,5 @@
-
-import React, { Suspense } from 'react';
-import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom';
+import React, { Suspense, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useParams, useNavigate } from 'react-router-dom';
 import { OutletProvider } from '@/context/OutletContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { ContextGuard } from '@/components/auth/ContextGuard';
@@ -41,6 +40,9 @@ const GuestOrder = React.lazy(() => import('@/features/legacy-pos/GuestOrder'));
 const PlatformAdmin = React.lazy(() => import('@/features/platform-admin/PlatformAdmin'));
 const CompanyLogin = React.lazy(() => import('@/features/platform-admin/CompanyLogin')); // Dedicated Admin Login
 const WelcomeWebsite = React.lazy(() => import('@/features/platform-admin/WelcomeWebsite')); // Landing Page
+
+// Onboarding Wizard
+const OnboardingWizard = React.lazy(() => import('@/features/onboarding/OnboardingWizard'));
 
 // ==================================================
 // LOADING FALLBACK
@@ -88,6 +90,19 @@ const AppShell = () => {
     </OutletProvider>
   );
 };
+
+// Onboarding Shell
+const OnboardingShell = () => (
+    <OutletProvider>
+        <AuthProvider>
+             {/* We strictly want to ensure user is logged in, but not full POS shell yet? */}
+             {/* For now, just context. OnboardingWizard handles its own logic/checks */}
+             <ContextGuard context="outlet">
+                <OnboardingWizard />
+             </ContextGuard>
+        </AuthProvider>
+    </OutletProvider>
+);
 
 // Invoice Wrapper (Public Link Access)
 const InvoiceWrapper = ({ printMode = false }) => {
@@ -154,8 +169,14 @@ export default function App() {
             <Route path="/:outletId/invoice/:orderId/print" element={<InvoiceWrapper printMode={true} />} />
             <Route path="/:outletId/order/table/:tableId" element={<GuestOrderWrapper />} />
             
+             {/* ============================================
+                5. ONBOARDING (New Outlet Setup)
+                Dedicated route for setup flow
+                ============================================ */}
+            <Route path="/:outletId/setup" element={<OnboardingShell />} />
+
             {/* ============================================
-                5. OUTLET POS APPLICATION
+                6. OUTLET POS APPLICATION
                 Dynamic route based on Outlet ID.
                 - Loads the POS bundle
                 - Enforces separation from Platform logic

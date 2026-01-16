@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { Toaster } from '@/components/ui/toaster';
 import Header from '@/features/legacy-pos/Header';
@@ -31,6 +32,7 @@ import { AlertTriangle, Lock } from 'lucide-react';
 
 export default function LegacyApp() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { outletId } = useOutlet();
   const { user, role, loading: authLoading, login, kitchenLogin, logout } = useAuth();
   const { settings } = useStoreSettings();
@@ -91,11 +93,17 @@ export default function LegacyApp() {
           // 1. Check Subscription
           const { data: restData } = await supabase
             .from('restaurants')
-            .select('subscription_status, subscription_expiry')
+            .select('subscription_status, subscription_expiry, onboarding_status')
             .eq('id', outletId)
             .single();
           
           if (restData) {
+              // 1b. Enforce Onboarding
+              if (restData.onboarding_status === 'setup_pending') {
+                  navigate(`/${outletId}/setup`);
+                  return;
+              }
+
               // Simple client-side check, robust check should be RLS/Backend
               // setIsActiveSubscription(restData.subscription_status !== 'expired');
               setSubscriptionStatus(restData.subscription_status);

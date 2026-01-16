@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 
 const OutletContext = createContext(null);
 
@@ -18,6 +18,7 @@ const OutletContext = createContext(null);
  * 1. Read `outletId` from URL.
  * 2. Fetch public restaurant details (Name, Logo, Settings).
  * 3. Handle Development/Demo placeholder modes.
+ * 4. Handle Redirection for Onboarding (New Feature).
  */
 export const OutletProvider = ({ children }) => {
     const { outletId } = useParams();
@@ -25,6 +26,7 @@ export const OutletProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
+    const location = useLocation();
 
     useEffect(() => {
         // Optimization: If no ID in URL, we are likely in Platform Admin or Public Root.
@@ -37,8 +39,6 @@ export const OutletProvider = ({ children }) => {
         // -----------------------------------------------------------------
         // DEV MODE / DEMO LOGIC
         // -----------------------------------------------------------------
-        // If the Supabase URL is a placeholder (local dev without full backend),
-        // we mock the data to allow UI work to continue.
         const isPlaceholder = supabase.supabaseUrl.includes('placeholder.supabase.co');
         if (isPlaceholder) {
             console.warn("Using placeholder Supabase URL. Mocking outlet data.");
@@ -47,7 +47,8 @@ export const OutletProvider = ({ children }) => {
                 name: "QuickServe Demo Café",
                 city: "Agra",
                 state: "UP",
-                logo_url: "https://rxuezlqrzfkxujkkilnq.supabase.co/storage/v1/object/public/assets/logo.png"
+                logo_url: "https://rxuezlqrzfkxujkkilnq.supabase.co/storage/v1/object/public/assets/logo.png",
+                onboarding_status: 'active' // Demo is always active
             });
             setLoading(false);
             return;
@@ -58,15 +59,10 @@ export const OutletProvider = ({ children }) => {
         // -----------------------------------------------------------------
         const fetchOutlet = async () => {
             try {
-                // We fetch from 'restaurants' table.
-                // NOTE: Row Level Security (RLS) is active.
-                // However, basic details (Name, Address) might need to be public 
-                // for login screens to show the logo before auth.
-                // Ensure specific PUBLIC policies exist for minimal read access if this fails for guests.
-                
+                // Fetch onboarding_status too
                 const { data, error } = await supabase
                     .from('restaurants')
-                    .select('*')
+                    .select('*, onboarding_status')
                     .eq('id', outletId)
                     .single();
 
@@ -74,6 +70,22 @@ export const OutletProvider = ({ children }) => {
                 if (!data) throw new Error("Outlet not found");
 
                 setCurrentOutlet(data);
+                
+                // -------------------------------------------------------------
+                // ONBOARDING REDIRECT LOGIC
+                // -------------------------------------------------------------
+                // If status is not active, force redirect to /setup
+                // Except if we are already ON the setup page or a public invoice page
+                
+                const isSetupPage = location.pathname.includes(`/setup`);
+                const isInvoicePage = location.pathname.includes(`/invoice/`);
+                
+                // If not active, and not on setup, redirect to setup.
+                if (data.onboarding_status !== 'active' && !isSetupPage && !isInvoicePage) {
+                    console.log("Redirecting to setup due to non-active status:", data.onboarding_status);
+                    navigate(`/${outletId}/setup`);
+                }
+                
             } catch (err) {
                 console.error("Outlet load error", err);
                 setError(err.message);
@@ -83,7 +95,12 @@ export const OutletProvider = ({ children }) => {
         };
 
         fetchOutlet();
-    }, [outletId]);
+    }, [outletId, location.pathname]); // Re-run if location changes to enforce check? Actually loops might happen.
+    // Better to depend on outletId and just check once on mount/load.
+    // If we add location.pathname, we must ensure we don't loop.
+    // Logic: if (!isSetupPage && status != active) -> Redirect.
+    // If we are on setup page, we do NOTHING.
+    // So safe to include.
 
     // Expose data to children
     return (

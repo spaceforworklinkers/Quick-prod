@@ -36,6 +36,8 @@ const BillReceipt = ({ order, settings, calculatedTotals = null }) => {
   const discountAmount = calculatedTotals ? calculatedTotals.discountAmount : (order.discount_amount || 0);
   const tax = calculatedTotals ? calculatedTotals.tax : (order.tax || 0);
   const total = calculatedTotals ? calculatedTotals.total : (order.total || 0);
+  const cgst = calculatedTotals ? calculatedTotals.cgst : (order.cgst || 0);
+  const sgst = calculatedTotals ? calculatedTotals.sgst : (order.sgst || 0);
   
   // Settings & Labels
   const gstPercent = settings?.gst_percentage !== undefined ? settings.gst_percentage : 5;
@@ -219,6 +221,20 @@ const BillReceipt = ({ order, settings, calculatedTotals = null }) => {
               <span>{taxLabel} ({gstPercent}%)</span>
               <span>{Number(tax).toFixed(2)}</span>
             </div>
+            
+            {/* CGST/SGST Breakdown */}
+            {(Number(cgst) > 0 || Number(sgst) > 0) && (
+              <div className="pl-4 space-y-0.5 text-[10px] text-gray-500">
+                <div className="flex justify-between">
+                  <span>CGST ({(gstPercent / 2).toFixed(2)}%)</span>
+                  <span>{Number(cgst).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>SGST ({(gstPercent / 2).toFixed(2)}%)</span>
+                  <span>{Number(sgst).toFixed(2)}</span>
+                </div>
+              </div>
+            )}
             
             <div className="flex justify-between text-lg font-bold text-gray-900 border-t-2 border-dashed border-gray-300 pt-2 mt-2">
               <span>{totalLabel.toUpperCase()}</span>

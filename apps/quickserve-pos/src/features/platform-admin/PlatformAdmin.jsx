@@ -24,7 +24,7 @@ import { PLATFORM_ROLES, hasPermission, PLATFORM_PERMISSIONS } from '@/config/pe
 
 // Import modules
 import { DynamicDashboard } from './dashboards/DynamicDashboard';
-import { ConversionRequests } from './ConversionRequests';
+import { ConversionRequestsRouter } from './ConversionRequestsRouter';
 import { UserManagement } from './UserManagement';
 import { FinanceManagement } from './FinanceManagement';
 import { PlatformSettings } from './PlatformSettings';
@@ -225,7 +225,7 @@ export default function PlatformAdmin() {
         {/* Dynamic Content Renderer */}
         <section className="p-8 max-w-[1400px] mx-auto w-full flex-1">
           {activeView === 'dashboard' && <DynamicDashboard />}
-          {activeView === 'pipeline' && <ConversionRequests />}
+          {activeView === 'pipeline' && <ConversionRequestsRouter />}
           {(activeView === 'outlets' || activeView === 'trials') && <OutletManagement />}
           {['revenue', 'invoices', 'taxes', 'reports'].includes(activeView) && (
               <FinanceManagement role={role} view={activeView} />
