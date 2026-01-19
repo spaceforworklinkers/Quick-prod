@@ -6,8 +6,8 @@
         "packages/*"
     ],
     "scripts": {
-        "dev:cafe": "npm run dev --workspace=@quickserve/cafe-pos",
-        "build:cafe": "npm run build --workspace=@quickserve/cafe-pos",
+        "dev": "npm run dev --workspace=quickserve-pos",
+        "build": "npm run build --workspace=quickserve-pos",
         "lint": "npm run lint --workspaces"
     },
     "devDependencies": {
