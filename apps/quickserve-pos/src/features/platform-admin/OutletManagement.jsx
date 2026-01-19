@@ -79,7 +79,8 @@ export const OutletManagement = () => {
             if (data && !data.success) throw new Error(data.error || 'Provisioning failed');
 
             // Send Welcome Email
-            const outletUrl = `${window.location.origin}/outlet/${data.restaurant_id}/login`;
+            // Correct URL format: {origin}/{outlet_id}/login (No 'outlet' prefix based on App.jsx routes)
+            const outletUrl = `${window.location.origin}/${data.restaurant_id}/login`;
             await EmailService.sendOutletCredentials({
                 ownerName: newOutlet.ownerName,
                 outletName: newOutlet.outletName,
