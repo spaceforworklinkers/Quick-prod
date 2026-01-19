@@ -11,9 +11,10 @@ export const calculateStockRequirements = async (orderItems) => {
   if (menuItemIds.length === 0) return {};
 
   // Fetch mappings for these menu items
+  // Fetch mappings for these menu items
   const { data: mappings, error } = await supabase
-    .from('menu_stock_usage')
-    .select('menu_item_id, stock_item_id, quantity_used, stock_item:inventory_items(name, current_stock, unit)')
+    .from('menu_ingredients')
+    .select('menu_item_id, inventory_item_id, quantity_used, inventory_item:inventory_items(name, current_stock, unit)')
     .in('menu_item_id', menuItemIds);
 
   if (error) {
@@ -21,7 +22,7 @@ export const calculateStockRequirements = async (orderItems) => {
     throw error;
   }
 
-  // Aggregate requirements by stock_item_id
+  // Aggregate requirements by inventory_item_id
   const requirements = {};
 
   mappings.forEach(mapping => {
@@ -32,16 +33,17 @@ export const calculateStockRequirements = async (orderItems) => {
     
     const totalRequired = parseFloat(mapping.quantity_used) * totalOrderedQty;
 
-    if (!requirements[mapping.stock_item_id]) {
-      requirements[mapping.stock_item_id] = {
-        stock_item_id: mapping.stock_item_id,
-        name: mapping.stock_item.name,
-        unit: mapping.stock_item.unit,
-        current_stock: mapping.stock_item.current_stock,
+    // Use inventory_item_id as key
+    if (!requirements[mapping.inventory_item_id]) {
+      requirements[mapping.inventory_item_id] = {
+        inventory_item_id: mapping.inventory_item_id,
+        name: mapping.inventory_item?.name,
+        unit: mapping.inventory_item?.unit,
+        current_stock: mapping.inventory_item?.current_stock,
         required: 0
       };
     }
-    requirements[mapping.stock_item_id].required += totalRequired;
+    requirements[mapping.inventory_item_id].required += totalRequired;
   });
 
   return requirements;
@@ -101,10 +103,11 @@ export const deductStockForOrder = async (orderItems, orderId, restaurantId, isO
       if (restaurantId) {
           await supabase.from('stock_logs').insert({
               restaurant_id: restaurantId,
-              stock_item_id: stockId,
-              order_id: orderId,
-              quantity_change: -item.required, // Negative for deduction
-              reason: isOverride && item.current_stock < item.required ? 'Sold without stock (Override)' : 'Order Fulfillment'
+              inventory_item_id: stockId,
+              created_by: null, // System action, user context not always available here
+              reason: isOverride && item.current_stock < item.required ? 'manual' : 'sale', 
+              change_qty: -item.required, // Negative for deduction
+              notes: isOverride ? 'Sold without stock (Override)' : 'Order Fulfillment'
           });
       }
     }

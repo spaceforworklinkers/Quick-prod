@@ -140,11 +140,11 @@ export default function PlatformAdmin() {
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-gray-50"><div className="w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="h-screen bg-gray-50 flex overflow-hidden">
       {/* =======================================
           SIDEBAR NAVIGATION
           ======================================= */}
-      <aside className={`hidden lg:flex flex-col bg-white border-r border-gray-200 transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-20'}`}>
+      <aside className={`hidden lg:flex flex-col bg-white border-r border-gray-200 transition-all duration-300 h-full overflow-y-auto ${sidebarOpen ? 'w-64' : 'w-20'}`}>
         {/* Logo Area */}
         <div className="h-16 px-6 flex items-center border-b border-gray-100 mb-4 focus:outline-none" onClick={() => setActiveView('dashboard')}>
           <div className="flex items-center gap-3 cursor-pointer select-none">

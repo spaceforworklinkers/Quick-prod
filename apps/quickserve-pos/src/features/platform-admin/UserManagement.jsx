@@ -66,6 +66,7 @@ export const UserManagement = () => {
             });
 
             if (error) throw error;
+            if (data && !data.success) throw new Error(data.message || data.error || 'Operation failed');
 
             toast({ 
                 title: "User Created Successfully", 
@@ -103,9 +104,22 @@ export const UserManagement = () => {
     const handleDeleteUser = async (userId) => {
         if (!confirm('Are you sure? This action is irreversible.')) return;
         
+        // Optimistic Update: Remove from UI immediately
+        const previousUsers = [...users];
+        setUsers(users.filter(u => u.id !== userId));
+
         try {
-            const { error } = await supabase.rpc('delete_platform_user', { target_user_id: userId });
-            if (error) throw error;
+            const { data, error } = await supabase.rpc('delete_platform_user', { target_user_id: userId });
+            
+            if (error) {
+                setUsers(previousUsers); // Revert optimistic update
+                throw error;
+            }
+            if (data && !data.success) {
+                setUsers(previousUsers); // Revert optimistic update
+                throw new Error(data.message || data.error || 'Operation failed');
+            }
+
             toast({ title: 'User Deleted', className: "bg-red-50 text-red-800 border-red-200" });
             fetchUsers();
         } catch (err) {
@@ -116,11 +130,12 @@ export const UserManagement = () => {
     const handleToggleStatus = async (user) => {
         const newStatus = !user.is_active;
         try {
-            const { error } = await supabase.rpc('toggle_user_status', { 
+            const { data, error } = await supabase.rpc('toggle_user_status', { 
                 target_user_id: user.id, 
                 new_status: newStatus 
             });
             if (error) throw error;
+            if (data && !data.success) throw new Error(data.message || data.error || 'Operation failed');
             toast({ title: newStatus ? 'User Unbanned' : 'User Banned', className: "bg-blue-50 text-blue-800 border-blue-200" });
             fetchUsers();
         } catch (err) {
@@ -143,11 +158,12 @@ export const UserManagement = () => {
         if (!resetDialog.newPassword) return;
         
         try {
-            const { error } = await supabase.rpc('admin_reset_password', { 
+            const { data, error } = await supabase.rpc('admin_reset_password', { 
                 target_user_id: resetDialog.userId, 
                 new_password: resetDialog.newPassword 
             });
             if (error) throw error;
+            if (data && !data.success) throw new Error(data.message || data.error || 'Operation failed');
             
             toast({ 
                 title: 'Password Updated', 
