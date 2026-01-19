@@ -36,20 +36,45 @@ export const AuditLogs = () => {
 
   const fetchLogs = async () => {
     setLoading(true);
-    // Definitive Mock for Audit Traceability
-    const mockLogs = [
-      { id: 1, action: 'PLATFORM_LOGIN', actor: 'anjul@spacelinkers.com', timestamp: new Date().toISOString(), status: 'SUCCESS', details: 'Session started from Mumbai, IN' },
-      { id: 2, action: 'USER_CREATED', actor: 'anjul@spacelinkers.com', timestamp: new Date(Date.now() - 3600000).toISOString(), status: 'SUCCESS', details: 'Created account for rahul@sales.com' },
-      { id: 3, action: 'LEAD_APPROVED', actor: 'anjul@spacelinkers.com', timestamp: new Date(Date.now() - 7200000).toISOString(), status: 'SUCCESS', details: 'Cafe Delight converted to tenant (ID: 8821)' },
-      { id: 4, action: 'SUBSCRIPTION_OVERRIDE', actor: 'anjul@spacelinkers.com', timestamp: new Date(Date.now() - 86400000).toISOString(), status: 'WARNING', details: 'Manual trial extension given to Spicy Wok' },
-      { id: 5, action: 'SECURITY_THRESHOLD', actor: 'SYSTEM', timestamp: new Date(Date.now() - 172800000).toISOString(), status: 'CRITICAL', details: 'Brute force attempts detected from 192.168.1.1 (Blocked)' }
-    ];
-    
     try {
-      const { data } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(20);
-      setLogs(data?.length ? data : mockLogs);
+      const { data: logsData, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      if (logsData && logsData.length > 0) {
+        // Extract Actor IDs to fetch emails
+        const actorIds = [...new Set(logsData.map(log => log.actor_id).filter(Boolean))];
+        
+        // Fetch User Profiles
+        const { data: users } = await supabase
+            .from('user_profiles')
+            .select('id, email')
+            .in('id', actorIds);
+
+        // Map logs
+        const mappedLogs = logsData.map(log => {
+            const user = users?.find(u => u.id === log.actor_id);
+            return {
+                id: log.id,
+                action: log.action,
+                actor: user ? user.email : 'System/Unknown',
+                timestamp: log.created_at,
+                status: 'SUCCESS', // Default as our simple logger tracks successful completions
+                details: typeof log.details === 'string' ? log.details : JSON.stringify(log.details)
+            };
+        });
+        setLogs(mappedLogs);
+      } else {
+        setLogs([]);
+      }
     } catch (err) {
-      setLogs(mockLogs);
+      console.error('Error fetching logs:', err);
+      // Fallback to empty or keep previous state, don't show mock data if DB fails to avoid confusion
+      setLogs([]); 
     } finally {
       setLoading(false);
     }

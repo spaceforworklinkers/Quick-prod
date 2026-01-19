@@ -219,7 +219,7 @@ export const OutletManagement = () => {
                 futureDate.setDate(futureDate.getDate() + 14);
                 updates = { 
                     subscription_status: 'trial',
-                    trial_expiry: futureDate.toISOString()
+                    subscription_expiry: futureDate.toISOString()
                 };
             }
 
@@ -455,10 +455,11 @@ export const OutletManagement = () => {
                                         <div className="space-y-1">
                                             <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
                                                 <Clock className="w-3.5 h-3.5 text-gray-400" />
-                                                {rest.trial_expiry 
-                                                    ? new Date(rest.trial_expiry).toLocaleDateString() 
+                                                {rest.subscription_expiry 
+                                                    ? new Date(rest.subscription_expiry).toLocaleDateString() 
                                                     : 'No Expiry Set'}
                                             </div>
+
                                             <p className="text-[10px] text-gray-400">
                                                 Plan: Standard
                                             </p>
