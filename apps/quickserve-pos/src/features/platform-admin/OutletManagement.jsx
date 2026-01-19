@@ -10,9 +10,13 @@ import {
   Clock, 
   Ban, 
   RefreshCw,
-  Power
+  Power,
+  X,
+  Plus,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +43,61 @@ export const OutletManagement = () => {
     const [filteredOutlets, setFilteredOutlets] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    
+    // Create State
+    const [isCreating, setIsCreating] = useState(false);
+    const [newOutlet, setNewOutlet] = useState({
+        outletName: '',
+        ownerName: '',
+        ownerEmail: '',
+        ownerPhone: '',
+        password: Math.random().toString(36).slice(-10),
+        city: '',
+        state: ''
+    });
+
+    const handleCreateTenant = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+
+        try {
+            const { data, error } = await supabase.rpc('create_outlet_direct_v2', {
+                p_outlet_name: newOutlet.outletName,
+                p_owner_name: newOutlet.ownerName,
+                p_owner_email: newOutlet.ownerEmail,
+                p_owner_phone: newOutlet.ownerPhone,
+                p_owner_password: newOutlet.password,
+                p_city: newOutlet.city,
+                p_state: newOutlet.state,
+                p_trial_days: 15
+            });
+
+            if (error) throw error;
+            if (data && !data.success) throw new Error(data.error);
+
+            toast({
+                title: "Outlet Provisioned Successfully",
+                description: `Created ${newOutlet.outletName} and owner account.`,
+                className: "bg-emerald-50 text-emerald-800 border-emerald-200"
+            });
+
+            setIsCreating(false);
+            setNewOutlet({
+                outletName: '', ownerName: '', ownerEmail: '', ownerPhone: '', 
+                password: Math.random().toString(36).slice(-10), city: '', state: ''
+            });
+            fetchOutlets();
+        } catch (err) {
+            console.error(err);
+            toast({
+                title: "Provisioning Failed",
+                description: err.message,
+                variant: 'destructive'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Action State
     const [selectedOutlet, setSelectedOutlet] = useState(null);
@@ -231,11 +290,80 @@ export const OutletManagement = () => {
                     <p className="text-xs text-gray-500 font-medium mt-1">Monitor, audit, and manage tenant subscriptions</p>
                 </div>
                 <div className="flex gap-2">
+                    <Button 
+                        onClick={() => setIsCreating(true)}
+                        className="text-xs font-semibold px-4 shadow-md bg-gray-900 text-white hover:bg-black"
+                    >
+                        <Plus className="w-3.5 h-3.5 mr-2" /> Create Tenant
+                    </Button>
                     <Button variant="outline" size="sm" className="text-xs font-semibold px-4 shadow-sm border-gray-200">
                         <Download className="w-3.5 h-3.5 mr-2 opacity-60" /> Export Summary
                     </Button>
                 </div>
             </div>
+
+            {/* CREATE TENANT MODAL */}
+            {isCreating && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-xl shadow-2xl border border-gray-100 max-w-lg w-full p-6 space-y-4 m-4 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between mb-2">
+                             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <Building2 className="w-5 h-5 text-orange-600" /> New Tenant Provisioning
+                             </h3>
+                             <button onClick={() => setIsCreating(false)}><X className="w-5 h-5 text-gray-400 hover:text-gray-600" /></button>
+                        </div>
+
+                        <form onSubmit={handleCreateTenant} className="space-y-4">
+                            <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Business Details</h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="col-span-2">
+                                        <Label className="text-xs font-semibold">Outlet Name</Label>
+                                        <Input bsSize="sm" required placeholder="e.g. Burger King - CP" value={newOutlet.outletName} onChange={e => setNewOutlet({...newOutlet, outletName: e.target.value})} className="h-8 text-xs bg-white" />
+                                    </div>
+                                    <div>
+                                        <Label className="text-xs font-semibold">City</Label>
+                                        <Input required placeholder="e.g. New Delhi" value={newOutlet.city} onChange={e => setNewOutlet({...newOutlet, city: e.target.value})} className="h-8 text-xs bg-white" />
+                                    </div>
+                                    <div>
+                                        <Label className="text-xs font-semibold">State</Label>
+                                        <Input required placeholder="e.g. Delhi" value={newOutlet.state} onChange={e => setNewOutlet({...newOutlet, state: e.target.value})} className="h-8 text-xs bg-white" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3 p-4 bg-orange-50/50 rounded-lg border border-orange-100">
+                                <h4 className="text-xs font-bold text-orange-400 uppercase tracking-widest">Owner Credentials</h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="col-span-2">
+                                        <Label className="text-xs font-semibold">Full Name</Label>
+                                        <Input required placeholder="Owner Name" value={newOutlet.ownerName} onChange={e => setNewOutlet({...newOutlet, ownerName: e.target.value})} className="h-8 text-xs bg-white" />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <Label className="text-xs font-semibold">Email (Login ID)</Label>
+                                        <Input type="email" required placeholder="owner@example.com" value={newOutlet.ownerEmail} onChange={e => setNewOutlet({...newOutlet, ownerEmail: e.target.value})} className="h-8 text-xs bg-white" />
+                                    </div>
+                                    <div>
+                                        <Label className="text-xs font-semibold">Mobile</Label>
+                                        <Input required placeholder="+91..." value={newOutlet.ownerPhone} onChange={e => setNewOutlet({...newOutlet, ownerPhone: e.target.value})} className="h-8 text-xs bg-white" />
+                                    </div>
+                                    <div>
+                                        <Label className="text-xs font-semibold">Initial Password</Label>
+                                        <Input required value={newOutlet.password} onChange={e => setNewOutlet({...newOutlet, password: e.target.value})} className="h-8 text-xs bg-white font-mono" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-2">
+                                <Button type="button" variant="ghost" onClick={() => setIsCreating(false)}>Cancel</Button>
+                                <Button type="submit" disabled={loading} className="bg-gray-900 text-white hover:bg-black">
+                                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Provision Outlet'}
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* CONTROLS */}
             <div className="flex items-center justify-between gap-4 p-1 bg-white border border-gray-200 rounded-lg shadow-sm">

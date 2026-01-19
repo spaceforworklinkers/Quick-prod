@@ -45,7 +45,22 @@ export const UserManagement = () => {
 
     const fetchUsers = async () => {
         setLoading(true);
-        const { data } = await supabase.from('user_profiles').select('*').order('created_at', { ascending: false });
+        // We only want Internal Platform Users, NOT Outlet Owners or Restaurant Staff
+        const allowedRoles = [
+            'OWNER_SUPER_ADMIN', 
+            'SUPER_ADMIN', 
+            'ADMIN', 
+            'MANAGER', 
+            'SALESPERSON', 
+            'ACCOUNTANT'
+        ];
+
+        const { data } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .in('role', allowedRoles)
+            .order('created_at', { ascending: false });
+            
         if (data) setUsers(data);
         setLoading(false);
     };
