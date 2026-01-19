@@ -29,6 +29,7 @@ BEGIN
     
     -- 3. MANUAL CLEANUP (For tables that might restrict deletion)
     -- Explicitly delete dependent records that might not have ON DELETE CASCADE
+    DELETE FROM public.conversion_requests WHERE created_outlet_id = target_restaurant_id;
     DELETE FROM public.subscription_tracking WHERE restaurant_id = target_restaurant_id;
     DELETE FROM public.store_settings WHERE restaurant_id = target_restaurant_id;
     -- (Add other tables here if needed in future)
