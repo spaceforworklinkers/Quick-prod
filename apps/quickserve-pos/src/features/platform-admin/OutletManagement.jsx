@@ -13,7 +13,8 @@ import {
   Power,
   X,
   Plus,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
+import { EmailService } from '@/services/EmailService';
 
 /**
  * OUTLET MANAGEMENT (DEFINITIVE)
@@ -56,6 +58,7 @@ export const OutletManagement = () => {
         state: ''
     });
 
+
     const handleCreateTenant = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -73,11 +76,21 @@ export const OutletManagement = () => {
             });
 
             if (error) throw error;
-            if (data && !data.success) throw new Error(data.error);
+            if (data && !data.success) throw new Error(data.error || 'Provisioning failed');
+
+            // Send Welcome Email
+            const outletUrl = `${window.location.origin}/outlet/${data.restaurant_id}/login`;
+            await EmailService.sendOutletCredentials({
+                ownerName: newOutlet.ownerName,
+                outletName: newOutlet.outletName,
+                email: newOutlet.ownerEmail,
+                temporaryPassword: newOutlet.password,
+                outletUrl: outletUrl
+            });
 
             toast({
-                title: "Outlet Provisioned Successfully",
-                description: `Created ${newOutlet.outletName} and owner account.`,
+                title: "Outlet Provisioned & Email Sent",
+                description: `Created ${newOutlet.outletName}. Credentials sent to owner.`,
                 className: "bg-emerald-50 text-emerald-800 border-emerald-200"
             });
 
@@ -87,6 +100,7 @@ export const OutletManagement = () => {
                 password: Math.random().toString(36).slice(-10), city: '', state: ''
             });
             fetchOutlets();
+
         } catch (err) {
             console.error(err);
             toast({
@@ -165,6 +179,10 @@ export const OutletManagement = () => {
                 title: 'Reactivate Outlet',
                 description: `This will restore full access for ${outlet.name}.`
             },
+            delete: {
+                title: 'Delete Outlet Data',
+                description: `CRITICAL WARNING: This will permanently delete ${outlet.name} and ALL its history (orders, menus, sales). This cannot be undone.`
+            },
             extend_trial: {
                 title: 'Extend Trial Period',
                 description: `Extend trial for ${outlet.name} by 14 days?`
@@ -185,8 +203,13 @@ export const OutletManagement = () => {
         setLoading(true);
         try {
             let updates = {};
-            
-            if (confirmAction.type === 'suspend') {
+            let rpcName = null;
+            let rpcParams = {};
+
+            if (confirmAction.type === 'delete') {
+                rpcName = 'delete_outlet_complete';
+                rpcParams = { target_restaurant_id: selectedOutlet.id };
+            } else if (confirmAction.type === 'suspend') {
                 updates = { subscription_status: 'suspended' };
             } else if (confirmAction.type === 'activate') {
                 updates = { subscription_status: 'active' };
@@ -200,12 +223,17 @@ export const OutletManagement = () => {
                 };
             }
 
-            const { error } = await supabase
-                .from('restaurants')
-                .update(updates)
-                .eq('id', selectedOutlet.id);
-
-            if (error) throw error;
+            if (rpcName) {
+                 const { data, error } = await supabase.rpc(rpcName, rpcParams);
+                 if (error) throw error;
+                 if (data && !data.success) throw new Error(data.error);
+            } else {
+                 const { error } = await supabase
+                    .from('restaurants')
+                    .update(updates)
+                    .eq('id', selectedOutlet.id);
+                 if (error) throw error;
+            }
 
             toast({
                 title: "Action Successful",
@@ -469,9 +497,15 @@ export const OutletManagement = () => {
                                                 <DropdownMenuItem 
                                                     className="text-xs font-bold text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer"
                                                     onClick={() => handleActionClick(rest, 'suspend')}
-                                                >
-                                                    <Ban className="w-3.5 h-3.5 mr-2" /> Suspend Outlet
-                                                </DropdownMenuItem>
+                                                 >
+                                                     <Ban className="w-3.5 h-3.5 mr-2" /> Suspend Outlet
+                                                 </DropdownMenuItem>
+                                                 <DropdownMenuItem 
+                                                    className="text-xs font-bold text-red-800 focus:text-red-900 focus:bg-red-100 cursor-pointer"
+                                                    onClick={() => handleActionClick(rest, 'delete')}
+                                                 >
+                                                     <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete Data
+                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </td>
