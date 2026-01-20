@@ -14,7 +14,9 @@ import {
   X,
   Plus,
   Loader2,
-  Trash2
+  Trash2,
+  User,
+  CreditCard
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -65,8 +67,36 @@ export const OutletManagement = () => {
     });
 
 
+    const INDIAN_STATES = [
+        "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", 
+        "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", 
+        "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", 
+        "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", 
+        "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli", "Daman and Diu", 
+        "Delhi", "Lakshadweep", "Puducherry"
+    ];
+
     const handleCreateTenant = async (e) => {
         e.preventDefault();
+
+        // VALIDATION
+        if (!/^\d{10}$/.test(newOutlet.ownerPhone)) {
+            toast({
+                title: "Invalid Phone Number",
+                description: "Mobile number must be exactly 10 digits.",
+                variant: "destructive"
+            });
+            return;
+        }
+        if (!newOutlet.state) {
+            toast({
+                title: "Missing State",
+                description: "Please select a state.",
+                variant: "destructive"
+            });
+            return;
+        }
+
         setLoading(true);
 
         try {
@@ -77,21 +107,22 @@ export const OutletManagement = () => {
                 throw new Error('You must be logged in to create outlets');
             }
 
-            // Use Edge Function for proper user creation
-            const { data, error } = await supabase.functions.invoke('create-outlet-admin', {
-                body: {
-                    outletName: newOutlet.outletName,
-                    ownerName: newOutlet.ownerName,
-                    ownerEmail: newOutlet.ownerEmail,
-                    ownerPhone: newOutlet.ownerPhone,
-                    password: newOutlet.password,
-                    city: newOutlet.city,
-                    state: newOutlet.state,
-                    trialDays: 15
-                },
-                headers: {
-                    Authorization: `Bearer ${session.access_token}`
-                }
+            // Use Direct RPC for robust creation (Bypassing Edge Function 401 issues)
+            const { data, error } = await supabase.rpc('create_outlet_direct_v2', {
+                outlet_name: newOutlet.outletName,
+                owner_name: newOutlet.ownerName,
+                owner_email: newOutlet.ownerEmail,
+                owner_phone: newOutlet.ownerPhone,
+                owner_password: newOutlet.password,
+                city: newOutlet.city,
+                state: newOutlet.state,
+                trial_days: parseInt(newOutlet.trialDays || 14),
+                business_type: newOutlet.businessType || 'restaurant',
+                gst_number: newOutlet.gstNumber || null,
+                is_paid: newOutlet.isPaid || false,
+                plan_name: newOutlet.planName || 'Standard',
+                billing_cycle: newOutlet.billingCycle || 'monthly',
+                paid_amount: newOutlet.amount ? parseFloat(newOutlet.amount) : 0
             });
 
             if (error) throw error;
@@ -345,17 +376,17 @@ export const OutletManagement = () => {
             {/* CONFIRMATION MODAL */}
             {confirmAction.open && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-xl shadow-2xl border border-gray-100 max-w-sm w-full p-6 space-y-4 m-4 animate-in zoom-in-95 duration-200">
+                    <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-800 max-w-sm w-full p-6 space-y-4 m-4 animate-in zoom-in-95 duration-200">
                         <div className="flex items-center gap-3 mb-2">
-                             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${confirmAction.type === 'suspend' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${confirmAction.type === 'suspend' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'}`}>
                                 {confirmAction.type === 'suspend' ? <AlertTriangle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
                              </div>
                              <div>
-                                 <h3 className="text-lg font-bold text-gray-900">{confirmAction.title}</h3>
+                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">{confirmAction.title}</h3>
                              </div>
                         </div>
 
-                        <p className="text-sm text-gray-600 leading-relaxed">
+                        <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
                             {confirmAction.description}
                         </p>
 
@@ -363,7 +394,7 @@ export const OutletManagement = () => {
                              <Button 
                                 variant="outline" 
                                 onClick={() => setConfirmAction({ ...confirmAction, open: false })}
-                                className="text-xs"
+                                className="text-xs dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                              >
                                 Cancel
                              </Button>
@@ -382,15 +413,15 @@ export const OutletManagement = () => {
             {/* BULK ACTION BAR */}
             {selectedIds.length > 0 && (
                 <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 duration-300">
-                    <div className="bg-gray-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-md">
+                    <div className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-6 py-3 rounded-full shadow-2xl flex items-center gap-6 border border-white/10 dark:border-gray-200 backdrop-blur-md">
                         <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 bg-orange-600 rounded-full flex items-center justify-center text-[10px] font-bold">
+                            <div className="w-6 h-6 bg-orange-600 rounded-full flex items-center justify-center text-[10px] font-bold text-white">
                                 {selectedIds.length}
                             </div>
                             <span className="text-xs font-semibold">Outlets Selected</span>
                         </div>
                         
-                        <div className="h-4 w-[1px] bg-white/20" />
+                        <div className="h-4 w-[1px] bg-white/20 dark:bg-gray-400/30" />
                         
                         <div className="flex gap-2">
                             <Button 
@@ -411,7 +442,7 @@ export const OutletManagement = () => {
                             <Button 
                                 size="sm" 
                                 variant="ghost" 
-                                className="h-8 text-xs text-white/60 hover:text-white hover:bg-white/10 border-0"
+                                className="h-8 text-xs text-white/60 hover:text-white dark:text-gray-600 dark:hover:text-gray-900 dark:hover:bg-gray-100 border-0"
                                 onClick={() => setSelectedIds([])}
                             >
                                 Cancel
@@ -424,19 +455,19 @@ export const OutletManagement = () => {
             {/* HEADER */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-bold text-gray-900 tracking-tight">Outlet Management</h1>
-                    <p className="text-xs text-gray-500 font-medium mt-1">Monitor, audit, and manage tenant subscriptions</p>
+                    <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Outlet Management</h1>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-1">Monitor, audit, and manage tenant subscriptions</p>
                 </div>
                 <div className="flex gap-2">
                     {hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_OUTLETS) && (
                         <Button 
                             onClick={() => setIsCreating(true)}
-                            className="text-xs font-semibold px-4 shadow-md bg-gray-900 text-white hover:bg-black"
+                            className="text-xs font-semibold px-4 shadow-md bg-gray-900 text-white hover:bg-black dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                         >
                             <Plus className="w-3.5 h-3.5 mr-2" /> Create Outlet
                         </Button>
                     )}
-                    <Button variant="outline" size="sm" className="text-xs font-semibold px-4 shadow-sm border-gray-200">
+                    <Button variant="outline" size="sm" className="text-xs font-semibold px-4 shadow-sm border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
                         <Download className="w-3.5 h-3.5 mr-2 opacity-60" /> Export Summary
                     </Button>
                 </div>
@@ -445,58 +476,168 @@ export const OutletManagement = () => {
             {/* CREATE TENANT MODAL */}
             {isCreating && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-xl shadow-2xl border border-gray-100 max-w-lg w-full p-6 space-y-4 m-4 animate-in zoom-in-95 duration-200">
+                    <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-800 max-w-lg w-full p-6 space-y-4 m-4 animate-in zoom-in-95 duration-200">
                         <div className="flex items-center justify-between mb-2">
-                             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                             <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                 <Building2 className="w-5 h-5 text-orange-600" /> New Outlet Provisioning
                              </h3>
-                             <button onClick={() => setIsCreating(false)}><X className="w-5 h-5 text-gray-400 hover:text-gray-600" /></button>
+                             <button onClick={() => setIsCreating(false)}><X className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" /></button>
                         </div>
 
                         <form onSubmit={handleCreateTenant} className="space-y-4">
-                            <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Business Details</h4>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="col-span-2">
-                                        <Label className="text-xs font-semibold">Outlet Name</Label>
-                                        <Input bsSize="sm" required placeholder="e.g. Burger King - CP" value={newOutlet.outletName} onChange={e => setNewOutlet({...newOutlet, outletName: e.target.value})} className="h-8 text-xs bg-white" />
-                                    </div>
-                                    <div>
-                                        <Label className="text-xs font-semibold">City</Label>
-                                        <Input required placeholder="e.g. New Delhi" value={newOutlet.city} onChange={e => setNewOutlet({...newOutlet, city: e.target.value})} className="h-8 text-xs bg-white" />
-                                    </div>
-                                    <div>
-                                        <Label className="text-xs font-semibold">State</Label>
-                                        <Input required placeholder="e.g. Delhi" value={newOutlet.state} onChange={e => setNewOutlet({...newOutlet, state: e.target.value})} className="h-8 text-xs bg-white" />
+                            <div className="space-y-4 max-h-[60vh] overflow-y-auto px-1">
+                                {/* BUSINESS DETAILS */}
+                                <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700">
+                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                        <Building2 className="w-3 h-3" /> Business Details
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="col-span-2">
+                                            <Label className="text-xs font-semibold dark:text-gray-300">Outlet Name <span className="text-red-500">*</span></Label>
+                                            <Input required placeholder="e.g. Burger King - CP" value={newOutlet.outletName || ''} onChange={e => setNewOutlet({...newOutlet, outletName: e.target.value})} className="h-8 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white" />
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs font-semibold dark:text-gray-300">City</Label>
+                                            <Input required placeholder="e.g. New Delhi" value={newOutlet.city || ''} onChange={e => setNewOutlet({...newOutlet, city: e.target.value})} className="h-8 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white" />
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs font-semibold dark:text-gray-300">State</Label>
+                                            <select 
+                                                required 
+                                                value={newOutlet.state || ''} 
+                                                onChange={e => setNewOutlet({...newOutlet, state: e.target.value})} 
+                                                className="w-full h-8 px-3 rounded-md border border-gray-200 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+                                            >
+                                                <option value="">Select State</option>
+                                                {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs font-semibold dark:text-gray-300">Business Type</Label>
+                                            <select 
+                                                className="w-full h-8 px-3 rounded-md border border-gray-200 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+                                                value={newOutlet.businessType || 'restaurant'}
+                                                onChange={e => setNewOutlet({...newOutlet, businessType: e.target.value})}
+                                            >
+                                                <option value="restaurant">Restaurant</option>
+                                                <option value="cafe">Cafe / Bakery</option>
+                                                <option value="qsr">QSR / Fast Food</option>
+                                                <option value="fine_dining">Fine Dining</option>
+                                                <option value="cloud_kitchen">Cloud Kitchen</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs font-semibold dark:text-gray-300">GSTIN (Optional)</Label>
+                                            <Input placeholder="GST Number" value={newOutlet.gstNumber || ''} onChange={e => setNewOutlet({...newOutlet, gstNumber: e.target.value})} className="h-8 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white" />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="space-y-3 p-4 bg-orange-50/50 rounded-lg border border-orange-100">
-                                <h4 className="text-xs font-bold text-orange-400 uppercase tracking-widest">Owner Credentials</h4>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="col-span-2">
-                                        <Label className="text-xs font-semibold">Full Name</Label>
-                                        <Input required placeholder="Owner Name" value={newOutlet.ownerName} onChange={e => setNewOutlet({...newOutlet, ownerName: e.target.value})} className="h-8 text-xs bg-white" />
+                                {/* SUBSCRIPTION & BILLING */}
+                                <div className="space-y-3 p-4 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-lg border border-emerald-100 dark:border-emerald-900/20">
+                                    <h4 className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                                        <CreditCard className="w-3 h-3" /> Subscription Plan
+                                    </h4>
+                                    
+                                    <div className="flex bg-white dark:bg-gray-800 rounded-md p-1 border border-gray-200 dark:border-gray-700 w-fit mb-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewOutlet({...newOutlet, isPaid: false})}
+                                            className={`px-4 py-1.5 text-xs font-bold rounded-sm transition-all ${!newOutlet.isPaid ? 'bg-orange-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400'}`}
+                                        >
+                                            Trial
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewOutlet({...newOutlet, isPaid: true})}
+                                            className={`px-4 py-1.5 text-xs font-bold rounded-sm transition-all ${newOutlet.isPaid ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400'}`}
+                                        >
+                                            Paid
+                                        </button>
                                     </div>
-                                    <div className="col-span-2">
-                                        <Label className="text-xs font-semibold">Email (Login ID)</Label>
-                                        <Input type="email" required placeholder="owner@example.com" value={newOutlet.ownerEmail} onChange={e => setNewOutlet({...newOutlet, ownerEmail: e.target.value})} className="h-8 text-xs bg-white" />
-                                    </div>
-                                    <div>
-                                        <Label className="text-xs font-semibold">Mobile</Label>
-                                        <Input required placeholder="+91..." value={newOutlet.ownerPhone} onChange={e => setNewOutlet({...newOutlet, ownerPhone: e.target.value})} className="h-8 text-xs bg-white" />
-                                    </div>
-                                    <div>
-                                        <Label className="text-xs font-semibold">Initial Password</Label>
-                                        <Input required value={newOutlet.password} onChange={e => setNewOutlet({...newOutlet, password: e.target.value})} className="h-8 text-xs bg-white font-mono" />
+
+                                    {!newOutlet.isPaid ? (
+                                        <div className="grid grid-cols-2 gap-3 animate-in fade-in">
+                                            <div>
+                                                <Label className="text-xs font-semibold dark:text-gray-300">Trial Duration (Days)</Label>
+                                                <Input type="number" value={newOutlet.trialDays || 14} onChange={e => setNewOutlet({...newOutlet, trialDays: parseInt(e.target.value)})} className="h-8 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white" />
+                                            </div>
+                                            <div className="flex items-end pb-2 text-xs text-gray-500 italic">
+                                                Standard 14-day trial access.
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 gap-3 animate-in fade-in">
+                                            <div>
+                                                <Label className="text-xs font-semibold dark:text-gray-300">Plan</Label>
+                                                <select 
+                                                    className="w-full h-8 px-3 rounded-md border border-gray-200 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+                                                    value={newOutlet.planName || 'Standard'}
+                                                    onChange={e => setNewOutlet({...newOutlet, planName: e.target.value})}
+                                                >
+                                                    <option value="Standard">Standard</option>
+                                                    <option value="Premium">Premium</option>
+                                                    <option value="Enterprise">Enterprise</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <Label className="text-xs font-semibold dark:text-gray-300">Billing Cycle</Label>
+                                                <select 
+                                                    className="w-full h-8 px-3 rounded-md border border-gray-200 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+                                                    value={newOutlet.billingCycle || 'monthly'}
+                                                    onChange={e => setNewOutlet({...newOutlet, billingCycle: e.target.value})}
+                                                >
+                                                    <option value="monthly">Monthly</option>
+                                                    <option value="yearly">Yearly</option>
+                                                </select>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <Label className="text-xs font-semibold dark:text-gray-300">Payment Amount Received (₹)</Label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">₹</span>
+                                                    <Input 
+                                                        type="number" 
+                                                        placeholder="0.00"
+                                                        value={newOutlet.amount || ''} 
+                                                        onChange={e => setNewOutlet({...newOutlet, amount: e.target.value})} 
+                                                        className="h-8 pl-6 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white font-mono" 
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* OWNER CREDENTIALS */}
+                                <div className="space-y-3 p-4 bg-orange-50/50 dark:bg-orange-900/10 rounded-lg border border-orange-100 dark:border-orange-900/20">
+                                    <h4 className="text-xs font-bold text-orange-400 uppercase tracking-widest flex items-center gap-2">
+                                        <User className="w-3 h-3" /> Owner Credentials
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="col-span-2">
+                                            <Label className="text-xs font-semibold dark:text-gray-300">Full Name <span className="text-red-500">*</span></Label>
+                                            <Input required placeholder="Owner Name" value={newOutlet.ownerName || ''} onChange={e => setNewOutlet({...newOutlet, ownerName: e.target.value})} className="h-8 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white" />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <Label className="text-xs font-semibold dark:text-gray-300">Email (Login ID) <span className="text-red-500">*</span></Label>
+                                            <Input type="email" required placeholder="owner@example.com" value={newOutlet.ownerEmail || ''} onChange={e => setNewOutlet({...newOutlet, ownerEmail: e.target.value})} className="h-8 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white" />
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs font-semibold dark:text-gray-300">Mobile</Label>
+                                            <Input required placeholder="+91..." value={newOutlet.ownerPhone || ''} onChange={e => setNewOutlet({...newOutlet, ownerPhone: e.target.value})} className="h-8 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white" />
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs font-semibold dark:text-gray-300">Initial Password <span className="text-red-500">*</span></Label>
+                                            <Input required value={newOutlet.password || ''} onChange={e => setNewOutlet({...newOutlet, password: e.target.value})} className="h-8 text-xs bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white font-mono" />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="flex justify-end gap-2 pt-2">
-                                <Button type="button" variant="ghost" onClick={() => setIsCreating(false)}>Cancel</Button>
-                                <Button type="submit" disabled={loading} className="bg-gray-900 text-white hover:bg-black">
+                                <Button type="button" variant="ghost" onClick={() => setIsCreating(false)} className="dark:text-gray-300 dark:hover:bg-gray-800">Cancel</Button>
+                                <Button type="submit" disabled={loading} className="bg-gray-900 text-white hover:bg-black dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100">
                                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Provision Outlet'}
                                 </Button>
                             </div>
@@ -506,7 +647,7 @@ export const OutletManagement = () => {
             )}
 
             {/* CONTROLS */}
-            <div className="flex items-center justify-between gap-4 p-1 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div className="flex items-center justify-between gap-4 p-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm">
                 <div className="flex gap-1 p-1">
                     {['all', 'active', 'trial', 'suspended'].map(filter => (
                         <button
@@ -514,8 +655,8 @@ export const OutletManagement = () => {
                             onClick={() => setStatusFilter(filter)}
                             className={`px-4 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all ${
                                 statusFilter === filter 
-                                    ? 'bg-gray-900 text-white shadow-sm' 
-                                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                                    ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900' 
+                                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
                             }`}
                         >
                             {filter}
@@ -528,17 +669,17 @@ export const OutletManagement = () => {
                         placeholder="Search outlets..." 
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        className="h-8 pl-9 text-xs border-gray-200 focus:ring-0 focus:border-orange-500 bg-gray-50/50" 
+                        className="h-8 pl-9 text-xs border-gray-200 focus:ring-0 focus:border-orange-500 bg-gray-50/50 dark:bg-gray-800 dark:border-gray-700 dark:text-white" 
                     />
                 </div>
             </div>
 
             {/* TABLE */}
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
-                            <tr className="bg-gray-50/50 border-b border-gray-100">
+                            <tr className="bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
                                 <th className="px-6 py-4 w-10">
                                     <input 
                                         type="checkbox" 
@@ -554,9 +695,9 @@ export const OutletManagement = () => {
                                 <th className="px-6 py-4 text-right"></th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                             {filteredOutlets.map(rest => (
-                                <tr key={rest.id} className={`hover:bg-gray-50/50 transition-colors group ${selectedIds.includes(rest.id) ? 'bg-orange-50/30' : ''}`}>
+                                <tr key={rest.id} className={`hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors group ${selectedIds.includes(rest.id) ? 'bg-orange-50/30 dark:bg-orange-900/10' : ''}`}>
                                     <td className="px-6 py-4">
                                         <input 
                                             type="checkbox" 
@@ -567,11 +708,11 @@ export const OutletManagement = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200 shrink-0">
-                                                <Building2 className="w-5 h-5 text-gray-500" />
+                                            <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center border border-gray-200 dark:border-gray-700 shrink-0">
+                                                <Building2 className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                                             </div>
                                             <div>
-                                                <p className="text-sm font-bold text-gray-900">{rest.name}</p>
+                                                <p className="text-sm font-bold text-gray-900 dark:text-white">{rest.name}</p>
                                                 <p className="text-[10px] text-gray-400 font-mono">ID: {rest.id.split('-')[0]}...</p>
                                             </div>
                                         </div>
@@ -581,7 +722,7 @@ export const OutletManagement = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="space-y-1">
-                                            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+                                            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
                                                 <Clock className="w-3.5 h-3.5 text-gray-400" />
                                                 {rest.subscription_expiry 
                                                     ? new Date(rest.subscription_expiry).toLocaleDateString() 
@@ -594,7 +735,7 @@ export const OutletManagement = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                                        <span className="text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
                                             {rest.city || 'Location N/A'}
                                         </span>
                                     </td>

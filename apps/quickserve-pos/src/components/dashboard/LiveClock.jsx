@@ -17,35 +17,29 @@ export const LiveClock = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const formatDate = (date) => {
-    return date.toLocaleDateString('en-IN', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
+  const formatDate = (date) => date.toLocaleDateString('en-IN', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
 
-  const formatTime = (date) => {
-    return date.toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true
-    });
-  };
+  const formatTime = (date) => date.toLocaleTimeString('en-IN', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+  });
 
   return (
-    <div className="flex items-center gap-3 bg-gradient-to-r from-orange-50 to-amber-50 px-4 py-2.5 rounded-xl border border-orange-100 shadow-sm">
-      <div className="p-2 bg-white rounded-lg shadow-sm">
-        <Clock className="w-4 h-4 text-orange-600" />
+    <div className={`
+        flex items-center gap-3 px-4 py-2.5 rounded-xl border shadow-sm transition-colors duration-300
+        bg-gradient-to-r from-orange-50 to-amber-50 border-orange-100 text-gray-900
+        dark:bg-none dark:bg-gray-900 dark:border-gray-800 dark:text-gray-100
+    `}>
+      <div className={`p-2 rounded-lg shadow-sm bg-white dark:bg-gray-800`}>
+        <Clock className={`w-4 h-4 text-orange-600 dark:text-orange-500`} />
       </div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
-        <span className="text-xs font-bold text-gray-900 whitespace-nowrap">
+        <span className={`text-xs font-bold whitespace-nowrap text-gray-900 dark:text-gray-300`}>
           {formatDate(time)}
         </span>
-        <span className="hidden sm:block text-gray-300">|</span>
-        <span className="text-xs font-mono font-bold text-orange-600 tabular-nums">
+        <span className={`hidden sm:block text-gray-300 dark:text-gray-700`}>|</span>
+        <span className={`text-xs font-mono font-bold tabular-nums text-orange-600 dark:text-orange-500`}>
           {formatTime(time)}
         </span>
       </div>

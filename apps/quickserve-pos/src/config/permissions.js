@@ -59,7 +59,11 @@ export const PLATFORM_PERMISSIONS = {
   MANAGE_SYSTEM_SETTINGS: 'manage_system_settings',
   VIEW_AUDIT_LOGS: 'view_audit_logs',
   EXPORT_DATA: 'export_data',
-  VIEW_SUBSCRIPTIONS: 'view_subscriptions'
+  VIEW_SUBSCRIPTIONS: 'view_subscriptions',
+  // New permissions for menu items
+  VIEW_CONVERSION_REQUESTS: 'view_conversion_requests',
+  VIEW_FINANCIALS: 'view_financials',
+  VIEW_ANALYTICS: 'view_analytics'
 };
 
 export const PLATFORM_ROLE_PERMISSIONS = {

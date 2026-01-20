@@ -18,7 +18,10 @@ import {
   PieChart,
   History,
   CreditCard,
-  Clock
+  Clock,
+  Moon,
+  Sun,
+  Loader2
 } from 'lucide-react';
 import { PLATFORM_ROLES, hasPermission, PLATFORM_PERMISSIONS } from '@/config/permissions';
 
@@ -37,206 +40,288 @@ import { SubscriptionManagement } from './SubscriptionManagement';
  * ============================================================
  * PLATFORM ADMIN SHELL
  * ============================================================
- * 
- * Purpose:
- * This component acts as the main layout container for the entire
- * Company Admin / Platform side of the application.
- * 
- * Features:
- * 1. Responsive Sidebar Navigation.
- * 2. Role-Based Menu Generation (Dynamic visibility based on permissions).
- * 3. User Identity Display.
- * 4. Dynamic Content Routing (Switches views without page reload).
  */
-export default function PlatformAdmin() {
-  // Auth Context provides current user info and role permissions
-  const { user, role, logout, loading: authLoading } = useAuth();
-  
-  // State for UI controls
+const PlatformAdmin = () => {
+  const { user, profile, loading: authLoading, logout, role } = useAuth();
   const [activeView, setActiveView] = useState('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    // Persist choice
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('platform-theme') === 'dark';
+    }
+    return false;
+  });
 
-  // ----------------------------------------------------------------
-  // NAVIGATION CONFIGURATION
-  // ----------------------------------------------------------------
-  // This list defines all possible navigation items.
-  // The 'visible' property uses the centralized permission config
-  // to toggle items on/off for specific roles.
+  // Toggle Dark Mode Logic
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('platform-theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('platform-theme', 'light');
+    }
+  }, [isDarkMode]);
+
+  // Define Navigation Items (Full Menu) - Show all during loading for better UX
   const navItems = [
     { 
       id: 'dashboard', 
-      label: role === PLATFORM_ROLES.SALESPERSON ? 'Workspace' : 'System Overview', 
+      label: 'System Overview', 
       icon: LayoutDashboard,
-      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_DASHBOARD)
+      visible: true 
     },
     { 
       id: 'pipeline', 
       label: 'Conversion Requests', 
       icon: FileText,
-      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_LEADS)
+      visible: authLoading || hasPermission(role, PLATFORM_PERMISSIONS.VIEW_CONVERSION_REQUESTS) 
     },
     { 
       id: 'outlets', 
       label: 'Outlets', 
       icon: Building2,
-      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_OUTLETS)
+      visible: authLoading || hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_OUTLETS) 
     },
     { 
       id: 'users', 
       label: 'Users', 
       icon: Users,
-      visible: hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_USERS)
+      visible: authLoading || hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_USERS) 
     },
     { 
       id: 'trials', 
       label: 'Trials', 
       icon: Clock,
-      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_OUTLETS)
+      visible: authLoading || hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_SUBSCRIPTIONS) 
     },
     { 
       id: 'revenue', 
       label: 'Revenue', 
-      icon: DollarSign, 
-      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_FINANCE)
+      icon: DollarSign,
+      visible: authLoading || hasPermission(role, PLATFORM_PERMISSIONS.VIEW_FINANCIALS) 
     },
     { 
       id: 'subscriptions', 
       label: 'Subscriptions', 
       icon: CreditCard,
-      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_SUBSCRIPTIONS)
+      visible: authLoading || hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_SUBSCRIPTIONS) 
     },
     { 
       id: 'invoices', 
       label: 'Invoices', 
       icon: FileText,
-      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_FINANCE)
+      visible: authLoading || hasPermission(role, PLATFORM_PERMISSIONS.VIEW_FINANCIALS) 
     },
     { 
       id: 'taxes', 
       label: 'Taxes', 
-      icon: Shield, // Using Shield as placeholder for Tax/Compliance
-      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_FINANCE)
+      icon: Shield,
+      visible: authLoading || hasPermission(role, PLATFORM_PERMISSIONS.VIEW_FINANCIALS) 
     },
     { 
       id: 'reports', 
       label: 'Reports', 
-      icon: PieChart, 
-      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_FINANCE)
+      icon: PieChart,
+      visible: authLoading || hasPermission(role, PLATFORM_PERMISSIONS.VIEW_ANALYTICS) 
     },
     { 
       id: 'audit', 
       label: 'Audit Logs', 
       icon: History,
-      visible: hasPermission(role, PLATFORM_PERMISSIONS.VIEW_AUDIT_LOGS)
+      visible: authLoading || hasPermission(role, PLATFORM_PERMISSIONS.VIEW_AUDIT_LOGS) 
     },
     { 
       id: 'settings', 
       label: 'Settings', 
       icon: Settings,
-      visible: hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_SYSTEM_SETTINGS)
+      visible: authLoading || hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_SYSTEM_SETTINGS) 
     }
-  ].filter(item => item.visible); // Filter out unauthorized items
+  ].filter(item => item.visible); 
 
-  if (authLoading) return <div className="h-screen flex items-center justify-center bg-gray-50"><div className="w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" /></div>;
+  const menuItems = navItems;
+
+  const ContentComponent = (() => {
+    switch (activeView) {
+      case 'dashboard': return DynamicDashboard;
+      case 'pipeline': return ConversionRequestsRouter;
+      case 'outlets': return OutletManagement;
+      case 'users': return UserManagement;
+      case 'trials':
+      case 'revenue':
+      case 'invoices':
+      case 'taxes':
+      case 'reports': return () => <FinanceManagement role={role} view={activeView} />;
+      case 'subscriptions': return SubscriptionManagement;
+      case 'audit': return AuditLogs;
+      case 'settings': return PlatformSettings;
+      default: return null;
+    }
+  })();
+
+  const signOut = async () => {
+    await logout();
+  };
+
+  if (authLoading) return <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900"><div className="w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="h-screen bg-gray-50 flex overflow-hidden">
-      {/* =======================================
-          SIDEBAR NAVIGATION
-          ======================================= */}
-      <aside className={`hidden lg:flex flex-col bg-white border-r border-gray-200 transition-all duration-300 h-full overflow-y-auto ${sidebarOpen ? 'w-64' : 'w-20'}`}>
-        {/* Logo Area */}
-        <div className="h-16 px-6 flex items-center border-b border-gray-100 mb-4 focus:outline-none" onClick={() => setActiveView('dashboard')}>
-          <div className="flex items-center gap-3 cursor-pointer select-none">
-            <img 
-               src="/images/logo/QuickServe-logo-black.png" 
-               alt="QuickServe" 
-               className="h-8 w-auto object-contain"
+    <div className={`flex h-screen font-sans overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 transition-colors duration-300`}>
+        {/* MOBILE OVERLAY */}
+        {isMobileMenuOpen && (
+            <div 
+                className="fixed inset-0 bg-black/80 z-40 lg:hidden backdrop-blur-sm"
+                onClick={() => setIsMobileMenuOpen(false)}
             />
-            {sidebarOpen && (
-              <div className="overflow-hidden">
-                <h1 className="font-['Outfit'] font-bold text-gray-900 text-lg tracking-tight whitespace-nowrap leading-none">QuickServe POS</h1>
-                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mt-0.5">Company Panel</p>
-              </div>
-            )}
-          </div>
-        </div>
+        )}
 
-        {/* Menu Items */}
-        <nav className="flex-1 px-3 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeView === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-200 ${
-                  isActive 
-                    ? 'bg-orange-50 text-orange-700 shadow-sm' 
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-orange-600' : 'text-gray-400'}`} />
-                {sidebarOpen && <span>{item.label}</span>}
-                {isActive && sidebarOpen && <div className="ml-auto w-1 h-4 bg-orange-600 rounded-full" />}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* User Profile & Logout */}
-        <div className="p-4 border-t border-gray-100 bg-gray-50/50">
-          {sidebarOpen && (
-            <div className="px-2 py-2 mb-3 bg-white rounded-lg border border-gray-100 shadow-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 bg-orange-100 rounded-full flex items-center justify-center text-[10px] font-bold text-orange-700">
-                  {user?.email?.charAt(0).toUpperCase()}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold text-gray-900 truncate">{user?.email}</p>
-                  <p className="text-[9px] text-gray-400 uppercase tracking-tighter">{role?.replace(/_/g, ' ')}</p>
-                </div>
-              </div>
+        {/* SIDEBAR */}
+        <aside className={`
+            fixed lg:static inset-y-0 left-0 z-50
+            w-72 
+            bg-white border-r border-gray-200
+            dark:bg-gray-950 dark:border-gray-800
+            transform transition-transform duration-300 ease-in-out
+            flex flex-col
+            ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+            shadow-xl lg:shadow-none
+        `}>
+            {/* LOGO */}
+            <div className="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800 shrink-0">
+                 <div className="flex items-center gap-3">
+                    <img 
+                        src={isDarkMode ? "/images/logo/QuickServe-logo-white.png" : "/images/logo/QuickServe-logo-black.png"}
+                        alt="QuickServe Logo" 
+                        className="h-8 w-auto object-contain"
+                    />
+                    <div>
+                        <h1 className="font-bold text-lg tracking-tight text-gray-900 dark:text-white">QuickServe POS</h1>
+                        <p className="text-[10px] font-medium text-gray-500 uppercase tracking-widest leading-none">Platform Admin</p>
+                    </div>
+                 </div>
+                 <button 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="lg:hidden ml-auto text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                 >
+                    <X className="w-6 h-6" />
+                 </button>
             </div>
-          )}
-          <button
-            onClick={logout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            {sidebarOpen && <span>Logout</span>}
-          </button>
-        </div>
-      </aside>
 
-      {/* =======================================
-          MAIN CONTENT AREA
-          ======================================= */}
-      <main className="flex-1 overflow-auto bg-gray-50 flex flex-col">
-        {/* Top Header */}
-        <header className="h-16 hidden lg:flex items-center justify-between px-8 bg-white/10 backdrop-blur-sm border-b border-gray-100/50">
-           <div className="text-xs text-gray-400 font-medium">QuickServe Management System v2.0</div>
-           <div className="flex items-center gap-4">
-              <NotificationBell />
-           </div>
-        </header>
+            {/* USER PROFILE */}
+            <div className="p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-md">
+                         <span className="text-sm font-bold text-white">
+                            {authLoading ? '...' : (user?.email?.charAt(0).toUpperCase() || 'U')}
+                         </span>
+                    </div>
+                    <div className="overflow-hidden flex-1">
+                        {authLoading ? (
+                            <>
+                                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24 mb-1 animate-pulse"></div>
+                                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-16 animate-pulse"></div>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-sm font-semibold text-gray-900 dark:text-gray-200 truncate">{profile?.full_name || user?.email || 'Admin User'}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate capitalize">{role?.replace(/_/g, ' ') || 'User'}</p>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
 
-        {/* Dynamic Content Renderer */}
-        <section className="p-8 max-w-[1400px] mx-auto w-full flex-1">
-          {activeView === 'dashboard' && <DynamicDashboard />}
-          {activeView === 'pipeline' && <ConversionRequestsRouter />}
-          {(activeView === 'outlets' || activeView === 'trials') && <OutletManagement />}
-          {['revenue', 'invoices', 'taxes', 'reports'].includes(activeView) && (
-              <FinanceManagement role={role} view={activeView} />
-          )}
-          {activeView === 'subscriptions' && <SubscriptionManagement />}
-          {activeView === 'users' && <UserManagement />}
-          {activeView === 'audit' && <AuditLogs />}
-          {activeView === 'settings' && <PlatformSettings />}
-        </section>
-      </main>
+            {/* NAV MENU */}
+            <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
+                 {menuItems.map((item) => (
+                    <button
+                        key={item.id}
+                        onClick={() => {
+                            setActiveView(item.id);
+                            setIsMobileMenuOpen(false);
+                        }}
+                        className={`
+                            w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group
+                            ${activeView === item.id 
+                                ? 'bg-orange-50 text-orange-700 shadow-sm dark:bg-orange-600 dark:text-white dark:shadow-orange-900/50' 
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white'
+                            }
+                        `}
+                    >
+                        <div className="flex items-center gap-3">
+                            <item.icon className={`w-5 h-5 ${activeView === item.id ? 'text-orange-600 dark:text-white' : 'text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300'}`} />
+                            <span>{item.label}</span>
+                        </div>
+                        {activeView === item.id && <ChevronRight className="w-4 h-4 opacity-50" />}
+                    </button>
+                 ))}
+            </nav>
+
+            {/* THEME TOGGLE & LOGOUT */}
+            <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 shrink-0 space-y-2">
+                {/* Dark Mode Toggle */}
+                <button
+                    onClick={() => setIsDarkMode(!isDarkMode)}
+                    className="w-full flex items-center justify-between px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900 rounded-lg transition-colors"
+                >
+                    <div className="flex items-center gap-3">
+                        {isDarkMode ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                        <span>{isDarkMode ? 'Dark Mode' : 'Light Mode'}</span>
+                    </div>
+                    {/* Toggle Switch Visual */}
+                    <div className={`w-8 h-4 rounded-full relative transition-colors ${isDarkMode ? 'bg-orange-600' : 'bg-gray-300'}`}>
+                        <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200 ${isDarkMode ? 'left-4.5' : 'left-0.5'}`} style={{ left: isDarkMode ? '18px' : '2px' }} />
+                    </div>
+                </button>
+
+                {/* Logout Button */}
+                <button 
+                    onClick={signOut}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-700 dark:hover:text-red-300 rounded-lg transition-colors"
+                >
+                    <LogOut className="w-4 h-4" />
+                    <span>Sign Out</span>
+                </button>
+            </div>
+        </aside>
+
+        {/* MAIN CONTENT */}
+        <main className="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 transition-colors duration-300 relative">
+            {/* MOBILE HEADER */}
+            <header className="lg:hidden h-16 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 shrink-0 z-30 transition-colors">
+                 <div className="flex items-center gap-3">
+                    <button onClick={() => setIsMobileMenuOpen(true)} className="text-gray-500 dark:text-gray-400">
+                        <Menu className="w-6 h-6" />
+                    </button>
+                    <span className="font-bold text-gray-900 dark:text-gray-100">QuickServe</span>
+                 </div>
+                 <NotificationBell />
+            </header>
+
+            {/* CONTENT SCROLL AREA */}
+            <div className="flex-1 overflow-y-auto p-4 lg:p-8 custom-scrollbar">
+                <div className="max-w-[1600px] mx-auto min-h-full pb-20">
+                     {/* DESKTOP TOP BAR */}
+                     <div className="hidden lg:flex justify-end mb-6 items-center gap-4">
+                        <NotificationBell />
+                     </div>
+
+                     {ContentComponent ? (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                            <ContentComponent />
+                        </div>
+                     ) : (
+                        <div className="flex flex-col items-center justify-center h-[60vh] text-gray-500">
+                            <Loader2 className="w-8 h-8 animate-spin mb-4 text-orange-600" />
+                            <p>Loading view...</p>
+                        </div>
+                     )}
+                </div>
+            </div>
+        </main>
     </div>
   );
-}
+};
+
+export default PlatformAdmin;
