@@ -85,16 +85,21 @@ export const UserManagement = () => {
         setLoading(true);
 
         try {
-            // Call the secure backend function
-            const { data, error } = await supabase.rpc('create_platform_user', {
-                param_email: formData.email,
-                param_password: formData.password,
-                param_full_name: formData.fullName,
-                param_role: formData.role
+            // Call the secure Edge Function (FIXED: Moved away from RPC)
+            const { data, error } = await supabase.functions.invoke('create-platform-user', {
+                body: {
+                    email: formData.email,
+                    password: formData.password,
+                    fullName: formData.fullName,
+                    role: formData.role
+                }
             });
 
             if (error) throw error;
-            if (data && !data.success) throw new Error(data.message || data.error || 'Operation failed');
+            // Edge functions return data directly, or nested in data depending on client version, 
+            // but invoke returns { data, error }. 
+            // Our function returns { success: true }, so check that.
+            if (data && !data.success) throw new Error(data.error || 'Operation failed');
 
             toast({ 
                 title: "User Created Successfully", 

@@ -51,11 +51,8 @@ USING (
 WITH CHECK (
   auth.uid() = salesperson_id
   AND (
-    -- If replying/fixing, status remains same or changes to pending
-    (status IN ('pending_manager_review') AND OLD.status IN ('query_from_manager', 'rejected'))
-    OR
-    -- If cancelling, new status must be 'cancelled'
-    (status = 'cancelled' AND OLD.status = 'pending_manager_review')
+    -- Allowed new statuses for a salesperson
+    status IN ('pending_manager_review', 'cancelled')
   )
 );
 

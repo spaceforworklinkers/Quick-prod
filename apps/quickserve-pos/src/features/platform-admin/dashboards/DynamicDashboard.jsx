@@ -8,7 +8,7 @@ import { OwnerSuperAdminDashboard } from './OwnerSuperAdminDashboard';
 import { SuperAdminDashboard } from './SuperAdminDashboard';
 import { AdminDashboard } from './AdminDashboard';
 import { ManagerDashboard } from './ManagerDashboard';
-import { SalespersonDashboard } from './SalespersonDashboard';
+import { SalespersonDashboard } from './SalespersonDashboardEnhanced';
 import { AccountantDashboard } from './AccountantDashboard';
 
 /**
