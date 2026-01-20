@@ -19,14 +19,27 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { PLATFORM_ROLES } from '@/config/permissions';
+import { PLATFORM_ROLES, hasPermission, PLATFORM_PERMISSIONS } from '@/config/permissions';
+import { useAuth } from '@/context/AuthContext';
 
 /**
  * USER & ROLE MANAGEMENT (DEFINITIVE)
  * For: OWNER_SUPER_ADMIN, SUPER_ADMIN
  */
 export const UserManagement = () => {
+    const { role } = useAuth();
     const { toast } = useToast();
+
+    // 4th Layer Security: Component-level block
+    if (!hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_USERS)) {
+        return (
+            <div className="p-8 text-center bg-red-50 rounded-xl border border-red-100">
+                <h2 className="text-lg font-bold text-red-800">Access Denied</h2>
+                <p className="text-sm text-red-600">You do not have permission to manage platform users.</p>
+            </div>
+        );
+    }
+
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);

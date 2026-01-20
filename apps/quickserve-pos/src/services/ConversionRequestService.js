@@ -102,10 +102,34 @@ export const ConversionRequestService = {
   },
 
   /**
+   * Cancel request (Salesperson)
+   */
+  async cancelRequest(requestId, userId) {
+    try {
+      const { error } = await supabase
+        .from('conversion_requests')
+        .update({
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', requestId)
+        .eq('salesperson_id', userId); // Extra safety check
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error cancelling request:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Manager: Add query to request
    */
   async addManagerQuery(requestId, message, userId) {
     try {
+      const { data: request } = await supabase.from('conversion_requests').select('salesperson_id, outlet_name').eq('id', requestId).single();
+
       // Add query
       const { error: queryError } = await supabase
         .from('conversion_request_queries')
@@ -129,6 +153,16 @@ export const ConversionRequestService = {
         .eq('id', requestId);
 
       if (updateError) throw updateError;
+
+      // Notify Salesperson
+      if (request) {
+        await this.createNotification(
+          request.salesperson_id,
+          'New Query on Request',
+          `The manager has a question regarding ${request.outlet_name}: "${message.slice(0, 50)}..."`,
+          'WARNING'
+        );
+      }
 
       return { success: true };
     } catch (error) {
@@ -173,10 +207,24 @@ export const ConversionRequestService = {
   },
 
   /**
+   * Helper: Create internal notification
+   */
+  async createNotification(userId, title, message, type = 'INFO') {
+    return supabase.from('notifications').insert([{
+      user_id: userId,
+      title,
+      message,
+      type
+    }]);
+  },
+
+  /**
    * Manager: Approve request (first level)
    */
   async managerApprove(requestId, userId) {
     try {
+      const { data: request } = await supabase.from('conversion_requests').select('salesperson_id, outlet_name').eq('id', requestId).single();
+      
       const { error } = await supabase
         .from('conversion_requests')
         .update({
@@ -188,6 +236,17 @@ export const ConversionRequestService = {
         .eq('id', requestId);
 
       if (error) throw error;
+      
+      // Notify Salesperson
+      if (request) {
+          await this.createNotification(
+              request.salesperson_id,
+              'Request Approved by Manager',
+              `Your request for ${request.outlet_name} has been approved by the manager and is pending final Admin approval.`,
+              'SUCCESS'
+          );
+      }
+
       return { success: true };
     } catch (error) {
       console.error('Error approving request (manager):', error);

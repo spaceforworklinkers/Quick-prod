@@ -80,28 +80,73 @@ export const AuditLogs = () => {
     }
   };
 
+  const handleExportCSV = () => {
+    if (logs.length === 0) return;
+
+    // CSV Headers
+    const headers = ['Timestamp', 'Actor Email', 'Action', 'Status', 'Details'];
+    
+    // CSV Content
+    const rows = logs.map(log => [
+        `"${new Date(log.timestamp).toLocaleString()}"`,
+        `"${log.actor}"`,
+        `"${log.action}"`,
+        `"${log.status}"`,
+        `"${(log.details || '').replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `audit_logs_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const getStatusColor = (status) => {
     if (status === 'SUCCESS') return 'text-emerald-500 bg-emerald-50 border-emerald-100';
     if (status === 'WARNING') return 'text-amber-500 bg-amber-50 border-amber-100';
-    if (status === 'CRITICAL') return 'text-red-500 bg-red-50 border-red-100';
-    return 'text-gray-400 bg-gray-50 border-gray-100';
+    return 'text-red-500 bg-red-50 border-red-100';
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Module Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">System Traceability</h1>
-          <p className="text-xs text-gray-500 font-medium mt-1">Definitive log of all platform activities and security events</p>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Shield className="h-6 w-6 text-orange-600" />
+            Audit Logs
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            System activities, authentication events, and critical operation logs
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="text-xs font-semibold px-4 border-gray-200">
-             <Download className="w-3.5 h-3.5 mr-2 opacity-60" /> Export Audit Log (PDF)
-          </Button>
-          <Button variant="outline" size="sm" className="text-xs font-semibold h-9 px-4 border-gray-200" onClick={fetchLogs}>
-             <RefreshCw className="w-3.5 h-3.5" />
-          </Button>
+            <Button 
+                variant="outline" 
+                size="sm" 
+                className="text-xs"
+                onClick={handleExportCSV}
+                disabled={logs.length === 0}
+            >
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+            </Button>
+            <Button 
+                variant="outline" 
+                size="sm" 
+                className="text-xs"
+                onClick={fetchLogs}
+            >
+                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+            </Button>
         </div>
       </div>
 

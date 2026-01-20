@@ -8,8 +8,11 @@ import SubscriptionStats from './SubscriptionStats';
 import SubscriptionList from './SubscriptionList';
 import ExtendSubscriptionModal from './ExtendSubscriptionModal';
 import PaymentProofDialog from './PaymentProofDialog';
+import { useAuth } from '@/context/AuthContext';
+import { hasPermission, PLATFORM_PERMISSIONS } from '@/config/permissions';
 
 export const SubscriptionManagement = () => {
+    const { role } = useAuth();
     const [loading, setLoading] = useState(true);
     const [subscriptions, setSubscriptions] = useState([]);
     const [stats, setStats] = useState(null);
@@ -83,10 +86,12 @@ export const SubscriptionManagement = () => {
                     <p className="text-sm text-gray-500 mt-1">Monitor billing cycles, revenue, and subscription health.</p>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={handleSystemCheck}>
-                        <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                        Run System Check
-                    </Button>
+                    {hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_SYSTEM_SETTINGS) && (
+                        <Button variant="outline" size="sm" onClick={handleSystemCheck}>
+                            <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                            Run System Check
+                        </Button>
+                    )}
                     <Button variant="outline" size="sm" onClick={handleRefresh}>
                         Refresh Data
                     </Button>
@@ -115,7 +120,7 @@ export const SubscriptionManagement = () => {
             <SubscriptionList 
                 subscriptions={subscriptions} 
                 onViewDetails={handleViewDetails}
-                onExtend={handleExtend}
+                onExtend={hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_SUBSCRIPTIONS) ? handleExtend : undefined}
             />
 
             {/* Modals */}

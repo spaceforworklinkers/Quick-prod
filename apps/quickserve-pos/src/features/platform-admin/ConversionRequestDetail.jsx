@@ -17,7 +17,8 @@ const statusConfig = {
   manager_approved: { label: 'Manager Approved', color: 'bg-purple-100 text-purple-800', icon: CheckCircle },
   fully_approved: { label: 'Fully Approved', color: 'bg-green-100 text-green-800', icon: CheckCircle },
   rejected: { label: 'Rejected', color: 'bg-red-100 text-red-800', icon: XCircle },
-  outlet_created: { label: 'Outlet Created', color: 'bg-emerald-100 text-emerald-800', icon: CheckCircle }
+  outlet_created: { label: 'Outlet Created', color: 'bg-emerald-100 text-emerald-800', icon: CheckCircle },
+  cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-800', icon: XCircle }
 };
 
 const ConversionRequestDetail = ({ userId, userRole }) => {
@@ -44,6 +45,27 @@ const ConversionRequestDetail = ({ userId, userRole }) => {
       });
     }
     setLoading(false);
+  };
+
+  const handleCancel = async () => {
+    if (!window.confirm('Are you sure you want to cancel this request? This action cannot be undone.')) {
+      return;
+    }
+
+    const result = await ConversionRequestService.cancelRequest(id, userId);
+    if (result.success) {
+      toast({
+        title: 'Success',
+        description: 'Request cancelled successfully'
+      });
+      fetchRequest();
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: result.error || 'Failed to cancel request'
+      });
+    }
   };
 
   const formatDate = (dateString) => {
@@ -96,10 +118,23 @@ const ConversionRequestDetail = ({ userId, userRole }) => {
             <p className="text-sm text-gray-500">Request #{request.request_number}</p>
           </div>
         </div>
-        <Badge className={`${statusConfig[request.status].color} flex items-center gap-2 px-4 py-2`}>
-          <StatusIcon className="h-4 w-4" />
-          {statusConfig[request.status].label}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {request.status === 'pending_manager_review' && userRole === 'SALESPERSON' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-red-600 border-red-200 hover:bg-red-50"
+              onClick={handleCancel}
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Cancel Request
+            </Button>
+          )}
+          <Badge className={`${statusConfig[request.status].color} flex items-center gap-2 px-4 py-2`}>
+            <StatusIcon className="h-4 w-4" />
+            {statusConfig[request.status].label}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

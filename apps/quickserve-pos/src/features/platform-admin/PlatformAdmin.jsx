@@ -27,6 +27,7 @@ import { DynamicDashboard } from './dashboards/DynamicDashboard';
 import { ConversionRequestsRouter } from './ConversionRequestsRouter';
 import { UserManagement } from './UserManagement';
 import { FinanceManagement } from './FinanceManagement';
+import NotificationBell from './components/NotificationBell';
 import { PlatformSettings } from './PlatformSettings';
 import { AuditLogs } from './AuditLogs';
 import { OutletManagement } from './OutletManagement';
@@ -218,7 +219,7 @@ export default function PlatformAdmin() {
         <header className="h-16 hidden lg:flex items-center justify-between px-8 bg-white/10 backdrop-blur-sm border-b border-gray-100/50">
            <div className="text-xs text-gray-400 font-medium">QuickServe Management System v2.0</div>
            <div className="flex items-center gap-4">
-              {/* Future: Notifications, Global Search */}
+              <NotificationBell />
            </div>
         </header>
 

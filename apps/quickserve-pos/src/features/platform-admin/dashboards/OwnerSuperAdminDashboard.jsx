@@ -35,14 +35,14 @@ export const OwnerSuperAdminDashboard = () => {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const { count: leads } = await supabase.from('leads').select('*', { count: 'exact', head: true });
+      const { count: requests } = await supabase.from('conversion_requests').select('*', { count: 'exact', head: true });
       const { data: outlets } = await supabase.from('restaurants').select('subscription_status');
       
       setStats({
-        totalLeads: leads || 0,
+        totalRequests: requests || 0,
         totalOutlets: outlets?.length || 0,
         activeSubs: outlets?.filter(o => o.subscription_status === 'active').length || 0,
-        monthlyRevenue: 263000 // In a real app, this would be aggregated
+        monthlyRevenue: 263000 // In a real app, this would be aggregated from payments
       });
     } catch (e) {
       console.error(e);
@@ -76,7 +76,7 @@ export const OwnerSuperAdminDashboard = () => {
         {[
           { label: 'Platform Revenue', value: `₹${stats.monthlyRevenue.toLocaleString()}`, icon: TrendingUp, color: 'text-orange-600', trend: '+14% vs last mo', bg: 'bg-orange-50' },
           { label: 'Active Tenants', value: stats.totalOutlets, icon: Building2, color: 'text-blue-600', trend: `${stats.activeSubs} Subscribed`, bg: 'bg-blue-50' },
-          { label: 'Total Leads', value: stats.totalLeads, icon: FileText, color: 'text-indigo-600', trend: '8 New this week', bg: 'bg-indigo-50' },
+          { label: 'Total Requests', value: stats.totalRequests, icon: FileText, color: 'text-indigo-600', trend: 'New conversion requests', bg: 'bg-indigo-50' },
           { label: 'System Health', value: '100%', icon: ShieldCheck, color: 'text-emerald-600', trend: 'All services active', bg: 'bg-emerald-50' }
         ].map((kpi, i) => (
           <div key={i} className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow">

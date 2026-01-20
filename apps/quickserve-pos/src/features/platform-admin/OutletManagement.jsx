@@ -29,6 +29,8 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { EmailService } from '@/services/EmailService';
+import { useAuth } from '@/context/AuthContext';
+import { hasPermission, PLATFORM_PERMISSIONS } from '@/config/permissions';
 
 /**
  * OUTLET MANAGEMENT (DEFINITIVE)
@@ -40,11 +42,13 @@ import { EmailService } from '@/services/EmailService';
  */
 export const OutletManagement = () => {
     const { toast } = useToast();
+    const { role } = useAuth();
     const [loading, setLoading] = useState(true);
     const [outlets, setOutlets] = useState([]);
     const [filteredOutlets, setFilteredOutlets] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [selectedIds, setSelectedIds] = useState([]);
     
     // Create State
     const [isCreating, setIsCreating] = useState(false);
@@ -55,7 +59,9 @@ export const OutletManagement = () => {
         ownerPhone: '',
         password: Math.random().toString(36).slice(-10),
         city: '',
-        state: ''
+        businessType: 'restaurant',
+        subscriptionType: 'standard_monthly',
+        trialDays: 14
     });
 
 
@@ -64,23 +70,35 @@ export const OutletManagement = () => {
         setLoading(true);
 
         try {
-            const { data, error } = await supabase.rpc('create_outlet_direct_v2', {
-                p_outlet_name: newOutlet.outletName,
-                p_owner_name: newOutlet.ownerName,
-                p_owner_email: newOutlet.ownerEmail,
-                p_owner_phone: newOutlet.ownerPhone,
-                p_owner_password: newOutlet.password,
-                p_city: newOutlet.city,
-                p_state: newOutlet.state,
-                p_trial_days: 15
+            // Get current session for authorization
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            if (!session) {
+                throw new Error('You must be logged in to create outlets');
+            }
+
+            // Use Edge Function for proper user creation
+            const { data, error } = await supabase.functions.invoke('create-outlet-admin', {
+                body: {
+                    outletName: newOutlet.outletName,
+                    ownerName: newOutlet.ownerName,
+                    ownerEmail: newOutlet.ownerEmail,
+                    ownerPhone: newOutlet.ownerPhone,
+                    password: newOutlet.password,
+                    city: newOutlet.city,
+                    state: newOutlet.state,
+                    trialDays: 15
+                },
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`
+                }
             });
 
             if (error) throw error;
             if (data && !data.success) throw new Error(data.error || 'Provisioning failed');
 
             // Send Welcome Email
-            // Correct URL format: {origin}/{outlet_id}/login (No 'outlet' prefix based on App.jsx routes)
-            const outletUrl = `${window.location.origin}/${data.restaurant_id}/login`;
+            const outletUrl = `${window.location.origin}/${data.restaurant_id}`;
             await EmailService.sendOutletCredentials({
                 ownerName: newOutlet.ownerName,
                 outletName: newOutlet.outletName,
@@ -122,6 +140,55 @@ export const OutletManagement = () => {
         title: '',
         description: ''
     });
+
+    const toggleAll = () => {
+        if (selectedIds.length === filteredOutlets.length && filteredOutlets.length > 0) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(filteredOutlets.map(o => o.id));
+        }
+    };
+
+    const toggleOne = (id) => {
+        if (selectedIds.includes(id)) {
+            setSelectedIds(selectedIds.filter(i => i !== id));
+        } else {
+            setSelectedIds([...selectedIds, id]);
+        }
+    };
+
+    const handleBulkAction = async (action) => {
+        if (!selectedIds.length) return;
+        
+        try {
+            setLoading(true);
+            const rpcName = action === 'suspend' ? 'suspend_outlet' : 'activate_outlet';
+            
+            const results = await Promise.all(selectedIds.map(id => 
+                supabase.rpc(rpcName, { outlet_id: id })
+            ));
+            
+            const errors = results.filter(r => r.error);
+            if (errors.length > 0) throw new Error(`${errors.length} actions failed.`);
+
+            toast({
+                title: "Bulk Action Complete",
+                description: `Successfully processed ${selectedIds.length} outlets.`,
+                className: "bg-emerald-50 text-emerald-800 border-emerald-200"
+            });
+            
+            setSelectedIds([]);
+            fetchOutlets();
+        } catch (error) {
+            toast({
+                title: "Bulk Action Partial Failure",
+                description: error.message,
+                variant: 'destructive'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         fetchOutlets();
@@ -312,6 +379,48 @@ export const OutletManagement = () => {
                 </div>
             )}
 
+            {/* BULK ACTION BAR */}
+            {selectedIds.length > 0 && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 duration-300">
+                    <div className="bg-gray-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-md">
+                        <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 bg-orange-600 rounded-full flex items-center justify-center text-[10px] font-bold">
+                                {selectedIds.length}
+                            </div>
+                            <span className="text-xs font-semibold">Outlets Selected</span>
+                        </div>
+                        
+                        <div className="h-4 w-[1px] bg-white/20" />
+                        
+                        <div className="flex gap-2">
+                            <Button 
+                                size="sm" 
+                                className="h-8 bg-emerald-600 hover:bg-emerald-700 text-xs text-white border-0"
+                                onClick={() => handleBulkAction('activate')}
+                            >
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-2" /> Bulk Activate
+                            </Button>
+                            <Button 
+                                size="sm" 
+                                variant="destructive" 
+                                className="h-8 text-xs border-0"
+                                onClick={() => handleBulkAction('suspend')}
+                            >
+                                <Ban className="w-3.5 h-3.5 mr-2" /> Bulk Suspend
+                            </Button>
+                            <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="h-8 text-xs text-white/60 hover:text-white hover:bg-white/10 border-0"
+                                onClick={() => setSelectedIds([])}
+                            >
+                                Cancel
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* HEADER */}
             <div className="flex items-center justify-between">
                 <div>
@@ -319,12 +428,14 @@ export const OutletManagement = () => {
                     <p className="text-xs text-gray-500 font-medium mt-1">Monitor, audit, and manage tenant subscriptions</p>
                 </div>
                 <div className="flex gap-2">
-                    <Button 
-                        onClick={() => setIsCreating(true)}
-                        className="text-xs font-semibold px-4 shadow-md bg-gray-900 text-white hover:bg-black"
-                    >
-                        <Plus className="w-3.5 h-3.5 mr-2" /> Create Tenant
-                    </Button>
+                    {hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_OUTLETS) && (
+                        <Button 
+                            onClick={() => setIsCreating(true)}
+                            className="text-xs font-semibold px-4 shadow-md bg-gray-900 text-white hover:bg-black"
+                        >
+                            <Plus className="w-3.5 h-3.5 mr-2" /> Create Outlet
+                        </Button>
+                    )}
                     <Button variant="outline" size="sm" className="text-xs font-semibold px-4 shadow-sm border-gray-200">
                         <Download className="w-3.5 h-3.5 mr-2 opacity-60" /> Export Summary
                     </Button>
@@ -337,7 +448,7 @@ export const OutletManagement = () => {
                     <div className="bg-white rounded-xl shadow-2xl border border-gray-100 max-w-lg w-full p-6 space-y-4 m-4 animate-in zoom-in-95 duration-200">
                         <div className="flex items-center justify-between mb-2">
                              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                <Building2 className="w-5 h-5 text-orange-600" /> New Tenant Provisioning
+                                <Building2 className="w-5 h-5 text-orange-600" /> New Outlet Provisioning
                              </h3>
                              <button onClick={() => setIsCreating(false)}><X className="w-5 h-5 text-gray-400 hover:text-gray-600" /></button>
                         </div>
@@ -428,6 +539,14 @@ export const OutletManagement = () => {
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-gray-50/50 border-b border-gray-100">
+                                <th className="px-6 py-4 w-10">
+                                    <input 
+                                        type="checkbox" 
+                                        className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                                        checked={selectedIds.length === filteredOutlets.length && filteredOutlets.length > 0}
+                                        onChange={toggleAll}
+                                    />
+                                </th>
                                 <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-nowrap">Outlet Details</th>
                                 <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-nowrap">Status</th>
                                 <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-nowrap">Licensing</th>
@@ -437,7 +556,15 @@ export const OutletManagement = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                             {filteredOutlets.map(rest => (
-                                <tr key={rest.id} className="hover:bg-gray-50/50 transition-colors group">
+                                <tr key={rest.id} className={`hover:bg-gray-50/50 transition-colors group ${selectedIds.includes(rest.id) ? 'bg-orange-50/30' : ''}`}>
+                                    <td className="px-6 py-4">
+                                        <input 
+                                            type="checkbox" 
+                                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                                            checked={selectedIds.includes(rest.id)}
+                                            onChange={() => toggleOne(rest.id)}
+                                        />
+                                    </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200 shrink-0">
@@ -472,44 +599,46 @@ export const OutletManagement = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <MoreVertical className="w-4 h-4 text-gray-400" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" className="w-48 bg-white border-gray-200 shadow-xl">
-                                                <DropdownMenuLabel className="text-xs text-gray-400 font-bold uppercase tracking-wider">Tenant Actions</DropdownMenuLabel>
-                                                <DropdownMenuSeparator />
-                                                
-                                                <DropdownMenuItem 
-                                                    className="text-xs font-medium cursor-pointer"
-                                                    onClick={() => handleActionClick(rest, 'activate')}
-                                                >
-                                                    <CheckCircle2 className="w-3.5 h-3.5 mr-2 text-emerald-500" /> Reactivate Access
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem 
-                                                    className="text-xs font-medium cursor-pointer"
-                                                    onClick={() => handleActionClick(rest, 'extend_trial')}
-                                                >
-                                                    <RefreshCw className="w-3.5 h-3.5 mr-2 text-blue-500" /> Extend Trial (+14d)
-                                                </DropdownMenuItem>
-                                                
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem 
-                                                    className="text-xs font-bold text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer"
-                                                    onClick={() => handleActionClick(rest, 'suspend')}
-                                                 >
-                                                     <Ban className="w-3.5 h-3.5 mr-2" /> Suspend Outlet
-                                                 </DropdownMenuItem>
-                                                 <DropdownMenuItem 
-                                                    className="text-xs font-bold text-red-800 focus:text-red-900 focus:bg-red-100 cursor-pointer"
-                                                    onClick={() => handleActionClick(rest, 'delete')}
-                                                 >
-                                                     <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete Data
-                                                 </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
+                                        {hasPermission(role, PLATFORM_PERMISSIONS.MANAGE_OUTLETS) && (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <MoreVertical className="w-4 h-4 text-gray-400" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="w-48 bg-white border-gray-200 shadow-xl">
+                                                    <DropdownMenuLabel className="text-xs text-gray-400 font-bold uppercase tracking-wider">Outlet Actions</DropdownMenuLabel>
+                                                    <DropdownMenuSeparator />
+                                                    
+                                                    <DropdownMenuItem 
+                                                        className="text-xs font-medium cursor-pointer"
+                                                        onClick={() => handleActionClick(rest, 'activate')}
+                                                    >
+                                                        <CheckCircle2 className="w-3.5 h-3.5 mr-2 text-emerald-500" /> Reactivate Access
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem 
+                                                        className="text-xs font-medium cursor-pointer"
+                                                        onClick={() => handleActionClick(rest, 'extend_trial')}
+                                                    >
+                                                        <RefreshCw className="w-3.5 h-3.5 mr-2 text-blue-500" /> Extend Trial (+14d)
+                                                    </DropdownMenuItem>
+                                                    
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem 
+                                                        className="text-xs font-bold text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer"
+                                                        onClick={() => handleActionClick(rest, 'suspend')}
+                                                     >
+                                                         <Ban className="w-3.5 h-3.5 mr-2" /> Suspend Outlet
+                                                     </DropdownMenuItem>
+                                                     <DropdownMenuItem 
+                                                        className="text-xs font-bold text-red-800 focus:text-red-900 focus:bg-red-100 cursor-pointer"
+                                                        onClick={() => handleActionClick(rest, 'delete')}
+                                                     >
+                                                         <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete Data
+                                                     </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

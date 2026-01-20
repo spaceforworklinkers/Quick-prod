@@ -38,22 +38,23 @@ export const ManagerDashboard = () => {
             const { count: pendingCount } = await supabase
                 .from('conversion_requests')
                 .select('*', { count: 'exact', head: true })
-                .eq('status', 'PENDING');
+                .eq('status', 'pending_manager_review');
             
-            // 2. Outlets in Setup (Trial)
+            // 2. Daily Approved (Final approved or Manager approved)
             const { count: dailyApproved } = await supabase
                 .from('conversion_requests')
                 .select('*', { count: 'exact', head: true })
-                .eq('status', 'APPROVED')
-                .gte('approved_at', new Date().toISOString().split('T')[0]); // Since start of today
-
+                .in('status', ['manager_approved', 'fully_approved', 'outlet_created'])
+                .gte('updated_at', new Date().toISOString().split('T')[0]); 
+            
+            // 3. Daily Rejected
             const { count: dailyRejected } = await supabase
                 .from('conversion_requests')
                 .select('*', { count: 'exact', head: true })
-                .eq('status', 'REJECTED')
-                .gte('approved_at', new Date().toISOString().split('T')[0]); // Using approved_at as action timestamp logic
+                .eq('status', 'rejected')
+                .gte('updated_at', new Date().toISOString().split('T')[0]);
 
-            // 3. Setup Status (Proxy using Trial)
+            // 4. Setup Status (Proxy using Trial)
             const { count: setupCount } = await supabase
                 .from('restaurants')
                 .select('*', { count: 'exact', head: true })

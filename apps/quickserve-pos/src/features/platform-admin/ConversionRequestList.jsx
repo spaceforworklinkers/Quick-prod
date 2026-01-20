@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConversionRequestService } from '@/services/ConversionRequestService';
-import { Search, Eye, Filter } from 'lucide-react';
+import { Search, Eye, Filter, Download, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -14,7 +14,8 @@ const statusConfig = {
   manager_approved: { label: 'Manager Approved', color: 'bg-purple-100 text-purple-800' },
   fully_approved: { label: 'Fully Approved', color: 'bg-green-100 text-green-800' },
   rejected: { label: 'Rejected', color: 'bg-red-100 text-red-800' },
-  outlet_created: { label: 'Outlet Created', color: 'bg-emerald-100 text-emerald-800' }
+  outlet_created: { label: 'Outlet Created', color: 'bg-emerald-100 text-emerald-800' },
+  cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-800' }
 };
 
 const ConversionRequestList = ({ userId, userRole }) => {
@@ -24,12 +25,38 @@ const ConversionRequestList = ({ userId, userRole }) => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
     fetchRequests();
     fetchStats();
   }, []);
+
+  const handleExportCSV = () => {
+    if (filteredRequests.length === 0) return;
+
+    const headers = ['Request Number', 'Outlet Name', 'Owner Name', 'Owner Email', 'Status', 'Subscription', 'Created At'];
+    const rows = filteredRequests.map(req => [
+      `"${req.request_number}"`,
+      `"${req.outlet_name}"`,
+      `"${req.owner_name}"`,
+      `"${req.owner_email}"`,
+      `"${req.status.toUpperCase()}"`,
+      `"${req.subscription_intent === 'trial' ? 'Trial' : 'Paid'}"`,
+      `"${new Date(req.created_at).toLocaleDateString()}"`
+    ]);
+
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `conversion_requests_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   useEffect(() => {
     filterRequests();
@@ -67,6 +94,20 @@ const ConversionRequestList = ({ userId, userRole }) => {
     // Status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter(req => req.status === statusFilter);
+    }
+
+    // Date filter
+    if (dateFilter !== 'all') {
+      const now = new Date();
+      const SevenDaysAgo = new Date(now.setDate(now.getDate() - 7));
+      const ThirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+
+      filtered = filtered.filter(req => {
+        const reqDate = new Date(req.created_at);
+        if (dateFilter === '7days') return reqDate >= SevenDaysAgo;
+        if (dateFilter === '30days') return reqDate >= ThirtyDaysAgo;
+        return true;
+      });
     }
 
     setFilteredRequests(filtered);
@@ -134,8 +175,18 @@ const ConversionRequestList = ({ userId, userRole }) => {
 
       {/* Filters */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle>Conversion Requests</CardTitle>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleExportCSV}
+            disabled={filteredRequests.length === 0}
+            className="text-xs"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -148,22 +199,38 @@ const ConversionRequestList = ({ userId, userRole }) => {
                 className="pl-10"
               />
             </div>
-            <div className="w-full md:w-64">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending_manager_review">Pending Review</SelectItem>
-                  <SelectItem value="query_from_manager">Query</SelectItem>
-                  <SelectItem value="manager_approved">Manager Approved</SelectItem>
-                  <SelectItem value="fully_approved">Fully Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="outlet_created">Outlet Created</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex gap-2 w-full md:w-auto">
+              <div className="w-full md:w-48">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending_manager_review">Pending Review</SelectItem>
+                    <SelectItem value="query_from_manager">Query</SelectItem>
+                    <SelectItem value="manager_approved">Manager Approved</SelectItem>
+                    <SelectItem value="fully_approved">Fully Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="outlet_created">Outlet Created</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-full md:w-48">
+                <Select value={dateFilter} onValueChange={setDateFilter}>
+                  <SelectTrigger>
+                    <Clock className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Date Range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="7days">Last 7 Days</SelectItem>
+                    <SelectItem value="30days">Last 30 Days</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 

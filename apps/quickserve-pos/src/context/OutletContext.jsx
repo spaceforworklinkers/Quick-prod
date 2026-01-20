@@ -64,7 +64,7 @@ export const OutletProvider = ({ children }) => {
                     .from('restaurants')
                     .select('*, onboarding_status')
                     .eq('id', outletId)
-                    .single();
+                    .maybeSingle();
 
                 if (error) throw error;
                 if (!data) throw new Error("Outlet not found");

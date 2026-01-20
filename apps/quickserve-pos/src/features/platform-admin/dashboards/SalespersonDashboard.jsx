@@ -96,23 +96,40 @@ export const SalespersonDashboard = () => {
         }
     };
 
+    // Metrics Calculation
+    const stats = {
+        total: myRequests.length,
+        approved: myRequests.filter(r => r.status === 'APPROVED' || r.status === 'manager_approved' || r.status === 'fully_approved' || r.status === 'outlet_created').length,
+        pending: myRequests.filter(r => r.status === 'PENDING' || r.status === 'pending_manager_review' || r.status === 'query_from_manager').length,
+        conversionRate: myRequests.length > 0 ? ((myRequests.filter(r => r.status === 'outlet_created' || r.status === 'fully_approved').length / myRequests.length) * 100).toFixed(1) : 0
+    };
+
     const StatusBadge = ({ status }) => {
         const styles = {
             PENDING: 'bg-blue-50 text-blue-700 border-blue-100',
+            pending_manager_review: 'bg-yellow-50 text-yellow-700 border-yellow-100',
+            query_from_manager: 'bg-orange-50 text-orange-700 border-orange-100',
+            manager_approved: 'bg-purple-50 text-purple-700 border-purple-100',
+            fully_approved: 'bg-green-50 text-green-700 border-green-100',
             APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-            REJECTED: 'bg-red-50 text-red-700 border-red-100'
+            outlet_created: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+            REJECTED: 'bg-red-50 text-red-700 border-red-100',
+            rejected: 'bg-red-50 text-red-700 border-red-100',
+            cancelled: 'bg-gray-50 text-gray-700 border-gray-100'
         };
         const icons = {
             PENDING: Clock,
             APPROVED: CheckCircle,
-            REJECTED: XCircle
+            REJECTED: XCircle,
+            cancelled: XCircle
         };
         const Icon = icons[status] || Clock;
+        const label = status?.replace(/_/g, ' ').toUpperCase() || 'UNKNOWN';
         
         return (
-            <span className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full border ${styles[status]} uppercase tracking-wide w-fit`}>
+            <span className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full border ${styles[status] || 'bg-gray-50'} uppercase tracking-wide w-fit`}>
                 <Icon className="w-3 h-3" />
-                {status}
+                {label}
             </span>
         );
     };
@@ -125,8 +142,8 @@ export const SalespersonDashboard = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-bold text-gray-900 tracking-tight">My Sales Pipeline</h1>
-                    <p className="text-xs text-gray-500 font-medium mt-1">Track conversions and submit new outlet requests</p>
+                    <h1 className="text-xl font-bold text-gray-900 tracking-tight">Sales Performance</h1>
+                    <p className="text-xs text-gray-500 font-medium mt-1">Real-time metrics and pipeline management</p>
                 </div>
                 {view === 'list' ? (
                      <Button onClick={() => setView('create')} className="bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold gap-2">
@@ -138,6 +155,28 @@ export const SalespersonDashboard = () => {
                     </Button>
                 )}
             </div>
+
+            {/* Metrics Dashboard */}
+            {view === 'list' && (
+                <div className="grid grid-cols-4 gap-4">
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Pipeline</p>
+                        <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Approved</p>
+                        <p className="text-2xl font-bold text-emerald-600">{stats.approved}</p>
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Pending Review</p>
+                        <p className="text-2xl font-bold text-orange-500">{stats.pending}</p>
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Success Rate</p>
+                        <p className="text-2xl font-bold text-blue-600">{stats.conversionRate}%</p>
+                    </div>
+                </div>
+            )}
 
             {/* CREATE VIEW */}
             {view === 'create' && (

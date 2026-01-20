@@ -53,7 +53,9 @@ async function applyMigration() {
         return;
     }
 
-    const sql = postgres(process.env.DATABASE_URL);
+    const sql = postgres(process.env.DATABASE_URL, {
+        onnotice: (notice) => console.log(`[DB NOTICE] ${notice.message}`)
+    });
 
     try {
         console.log("🔌 Connecting to Database...");

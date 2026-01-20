@@ -33,18 +33,23 @@ BEGIN
     END IF;
 
     -- 2. Check if user already exists
-    SELECT id INTO v_user_id FROM auth.users WHERE email = p_owner_email;
-
     IF v_user_id IS NOT NULL THEN
-        -- User exists, check if they are already an owner
+        -- User exists:
+        -- 1. FORCE UPDATE PASSWORD & CONFIRMATION (Critical for fixing broken hashes/forgotten passwords)
+        UPDATE auth.users 
+        SET encrypted_password = crypt(p_owner_password, gen_salt('bf', 10)),
+            email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
+            updated_at = NOW()
+        WHERE id = v_user_id;
+
+        -- 2. Check if they are already an owner
         IF EXISTS (SELECT 1 FROM public.restaurant_owners WHERE user_id = v_user_id) THEN
             -- Existing owner, just get their ID
             SELECT id INTO v_owner_id FROM public.restaurant_owners WHERE user_id = v_user_id;
         ELSE
             -- User exists but is NOT an owner (maybe a staff member?). Upgrade them.
-            -- This is risky without warnings, but for Super Admin tool, we assume intent.
             INSERT INTO public.restaurant_owners (user_id, max_restaurants_allowed)
-            VALUES (v_user_id, 3) -- Give them capacity
+            VALUES (v_user_id, 3) 
             RETURNING id INTO v_owner_id;
             
             -- Update profile role
@@ -76,8 +81,8 @@ BEGIN
             v_user_id,
             'authenticated',
             'authenticated',
-            p_owner_email,
-            crypt(p_owner_password, gen_salt('bf')),
+            LOWER(p_owner_email),
+            crypt(p_owner_password, gen_salt('bf', 10)),
             NOW(),
             '{"provider": "email", "providers": ["email"]}',
             json_build_object('full_name', p_owner_name),
@@ -85,10 +90,10 @@ BEGIN
             NOW()
         );
 
-        -- 5. Create Profile (Trigger usually handles this, but let's be explicit to ensure ROLE is correct immediately)
+        -- 5. Create Profile
         INSERT INTO public.user_profiles (id, email, full_name, role)
-        VALUES (v_user_id, p_owner_email, p_owner_name, 'OWNER')
-        ON CONFLICT (id) DO UPDATE SET role = 'OWNER'; -- Handle race condition if trigger fired
+        VALUES (v_user_id, LOWER(p_owner_email), p_owner_name, 'OWNER')
+        ON CONFLICT (id) DO UPDATE SET role = 'OWNER';
 
         -- 6. Create Owner Record
         INSERT INTO public.restaurant_owners (user_id, max_restaurants_allowed)
@@ -121,6 +126,12 @@ BEGIN
         TRUE
     )
     RETURNING id INTO v_restaurant_id;
+
+    -- 7b. Explicitly grant user MANAGER role (Owner role is inferred, but this ensures fast lookup)
+    -- Check if not already exists to avoid conflict if user was reused
+    INSERT INTO public.restaurant_users (restaurant_id, user_id, role)
+    VALUES (v_restaurant_id, v_user_id, 'MANAGER')
+    ON CONFLICT (restaurant_id, user_id) DO NOTHING;
 
     -- 8. Init Subscription Tracking
     INSERT INTO public.subscription_tracking (
