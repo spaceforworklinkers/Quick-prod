@@ -18,18 +18,34 @@ const Step1BusinessInfo = ({ outletId, initialData, onNext }) => {
     });
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        
+        if (name === 'phone') {
+            // Strict 10 digit validation
+            if (/^\d{0,10}$/.test(value)) {
+                setFormData({ ...formData, [name]: value });
+            }
+        } else {
+            setFormData({ ...formData, [name]: value });
+        }
     };
+
+    const isPhoneValid = formData.phone && formData.phone.length === 10;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!isPhoneValid) {
+            alert("Phone number must be exactly 10 digits.");
+            return;
+        }
+
         setLoading(true);
         try {
             await OnboardingService.updateBusinessInfo(outletId, formData);
-            onNext();
+            onNext(2);
         } catch (error) {
             console.error("Failed to save business info", error);
-            // Ideally show toast
+            alert("Failed to save. Please ensure you ran the '51_add_onboarding_cols.sql' migration. Error: " + error.message);
         } finally {
             setLoading(false);
         }
@@ -77,9 +93,14 @@ const Step1BusinessInfo = ({ outletId, initialData, onNext }) => {
                                 name="phone" 
                                 value={formData.phone} 
                                 onChange={handleChange} 
-                                placeholder="+91 98765 43210" 
+                                placeholder="9876543210" 
                                 required 
+                                type="tel"
+                                inputMode="numeric"
                             />
+                            {!isPhoneValid && formData.phone.length > 0 && (
+                                <p className="text-xs text-red-500">Must be 10 digits</p>
+                            )}
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="gst">GST Number (Optional)</Label>
@@ -96,7 +117,7 @@ const Step1BusinessInfo = ({ outletId, initialData, onNext }) => {
                     <div className="pt-4 flex justify-end">
                         <Button 
                             type="submit" 
-                            disabled={loading || !formData.name || !formData.address || !formData.phone}
+                            disabled={loading || !formData.name || !formData.address || !isPhoneValid}
                             className="bg-orange-600 hover:bg-orange-700"
                         >
                              {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}

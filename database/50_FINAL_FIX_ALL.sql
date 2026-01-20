@@ -1,10 +1,11 @@
 -- ================================================================
--- FINAL FIX FOR QUICKSERVE POS - RUN THIS TO FIX EVERYTHING (V4)
+-- FINAL FIX FOR QUICKSERVE POS - RUN THIS TO FIX EVERYTHING (V5)
 -- ================================================================
 -- 1. Fixes Dashboard 500 Crashes (RLS Recursion Loop 1 & 2)
 -- 2. Enhance Outlet Creation (Fix 401 & Add Billing Details)
 -- 3. Fixes Login 400 Error (Correct Instance ID for Cloud)
--- 4. Fixes Login Page 'Outlet Not Found' (Adds Public Read Access)
+-- 4. Fixes Login Page 'Outlet Not Found' (Public Read Access)
+-- 5. Enables POS Order Creation (Adds Missing 'submit_order' RPC)
 -- ================================================================
 
 -- PART 1: FIX RECURSION CRASHES (500 Errors)
@@ -31,13 +32,14 @@ $$;
 -- B. Fix User Profiles Policy (Loop 1)
 DROP POLICY IF EXISTS "Super admins can view all profiles" ON public.user_profiles;
 CREATE POLICY "Super admins can view all profiles" ON public.user_profiles FOR SELECT
-USING ( public.is_platform_admin() OR auth.uid() = id );
+USING ( auth.uid() = id ); -- FIXED: Removed recursion causing 500 error
 
 -- C. Fix Restaurants Policy (Loop 2 & Public Access)
 DROP POLICY IF EXISTS "Super admins can manage all restaurants" ON public.restaurants;
 DROP POLICY IF EXISTS "Owners can view own restaurants" ON public.restaurants;
 DROP POLICY IF EXISTS "Restaurant staff can view assigned restaurant" ON public.restaurants;
 DROP POLICY IF EXISTS "Public can view restaurants" ON public.restaurants;
+DROP POLICY IF EXISTS "Owners and Staff can update assigned restaurants" ON public.restaurants;
 
 -- Admin: Full Access
 CREATE POLICY "Super admins can manage all restaurants" ON public.restaurants FOR ALL
@@ -155,7 +157,8 @@ BEGIN
 
     -- Create Profile
     INSERT INTO public.user_profiles (id, email, full_name, role)
-    VALUES (new_user_id, owner_email, owner_name, 'OWNER');
+    VALUES (new_user_id, owner_email, owner_name, 'OWNER')
+    ON CONFLICT (id) DO UPDATE SET role = 'OWNER', full_name = EXCLUDED.full_name;
 
     -- Create Owner
     INSERT INTO public.restaurant_owners (user_id, max_restaurants_allowed)
@@ -209,6 +212,77 @@ BEGIN
     RETURN json_build_object('success', true, 'restaurant_id', restaurant_record_id);
 EXCEPTION WHEN OTHERS THEN
     RETURN json_build_object('success', false, 'error', SQLERRM);
+END;
+$$;
+
+
+-- PART 3: POS ORDER CREATION (Transaction Support)
+
+CREATE OR REPLACE FUNCTION submit_order(p_order jsonb, p_items jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_order_id uuid;
+BEGIN
+  -- 1. Insert Order
+  INSERT INTO public.orders (
+    id, restaurant_id, status, table_number, order_source, 
+    customer_name, customer_mobile, customer_email, 
+    subtotal, tax, total, discount_type, discount_value, discount_amount,
+    payment_status, payment_method, notes, created_at, updated_at
+  ) VALUES (
+    (p_order->>'id')::uuid,
+    (p_order->>'restaurant_id')::uuid,
+    p_order->>'status',
+    p_order->>'table_number',
+    p_order->>'order_source',
+    p_order->>'customer_name',
+    p_order->>'customer_mobile',
+    p_order->>'customer_email',
+    COALESCE((p_order->>'subtotal')::decimal, 0),
+    COALESCE((p_order->>'tax')::decimal, 0),
+    COALESCE((p_order->>'total')::decimal, 0),
+    p_order->>'discount_type',
+    (p_order->>'discount_value')::decimal,
+    (p_order->>'discount_amount')::decimal,
+    p_order->>'payment_status',
+    p_order->>'payment_method',
+    p_order->>'notes',
+    COALESCE((p_order->>'created_at')::timestamptz, now()),
+    COALESCE((p_order->>'updated_at')::timestamptz, now())
+  )
+  RETURNING id INTO v_order_id;
+
+  -- 2. Insert Items
+  IF jsonb_array_length(p_items) > 0 THEN
+    INSERT INTO public.order_items (
+        id, order_id, restaurant_id, menu_item_id, 
+        quantity, price, total_price, notes, 
+        base_price, tax_rate, tax_amount, 
+        variant_name, addons
+    )
+    SELECT
+        (item->>'id')::uuid,
+        v_order_id,
+        (item->>'restaurant_id')::uuid,
+        (item->>'menu_item_id')::uuid,
+        (item->>'quantity')::int,
+        (item->>'price')::decimal,
+        (item->>'total_price')::decimal,
+        item->>'notes',
+        (item->>'base_price')::decimal,
+        (item->>'tax_rate')::decimal,
+        (item->>'tax_amount')::decimal,
+        item->>'variant_name',
+        (item->>'addons')::jsonb
+    FROM jsonb_array_elements(p_items) AS item;
+  END IF;
+
+  RETURN jsonb_build_object('success', true, 'order_id', v_order_id);
+EXCEPTION WHEN OTHERS THEN
+  RETURN jsonb_build_object('success', false, 'error', SQLERRM);
 END;
 $$;
 

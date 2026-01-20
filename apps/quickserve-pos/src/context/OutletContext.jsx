@@ -79,9 +79,11 @@ export const OutletProvider = ({ children }) => {
                 
                 const isSetupPage = location.pathname.includes(`/setup`);
                 const isInvoicePage = location.pathname.includes(`/invoice/`);
+                const isLoginPage = location.pathname.includes(`/login`);
                 
-                // If not active, and not on setup, redirect to setup.
-                if (data.onboarding_status !== 'active' && !isSetupPage && !isInvoicePage) {
+                // If not active, and not on setup/login/invoice, redirect to setup.
+                // We MUST allow login, otherwise unauthenticated users verify loop.
+                if (data.onboarding_status !== 'active' && !isSetupPage && !isInvoicePage && !isLoginPage) {
                     console.log("Redirecting to setup due to non-active status:", data.onboarding_status);
                     navigate(`/${outletId}/setup`);
                 }

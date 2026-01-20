@@ -30,7 +30,7 @@ export const OnboardingService = {
    */
   async updateBusinessInfo(restaurantId, info) {
     const { name, address, phone } = info;
-    const { error } = await supabase
+    const { data, count, error } = await supabase
       .from('restaurants')
       .update({
         name,
@@ -38,9 +38,15 @@ export const OnboardingService = {
         phone,
         business_info_completed: true,
         onboarding_status: 'setup_in_progress',
-        onboarding_step: 1 // Completed step 1, move to next logic handled in UI or here
+        onboarding_step: 2
       })
-      .eq('id', restaurantId);
+      .eq('id', restaurantId)
+      .select('id, onboarding_step, business_info_completed', { count: 'exact' });
+
+    if (error) throw error;
+    if (count === 0) throw new Error("Update failed. You may not have permission or the session has expired. Please login again.");
+    
+    return data[0];
 
     if (error) throw error;
   },
